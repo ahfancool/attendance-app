@@ -21,3 +21,14 @@ export async function revokeVoucher(voucherUsername) {
     body: JSON.stringify({ voucher_username: voucherUsername })
   });
 }
+
+export async function getPackagesForAdmin() {
+  return apiRequest('/api/packages');
+}
+
+export async function importVoucherPoolCsv(payload) {
+  return apiRequest('/api/admin/voucher-pool/import', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}

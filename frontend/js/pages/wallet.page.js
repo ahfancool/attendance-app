@@ -9,6 +9,10 @@ const adminNavEl = document.getElementById('nav-admin');
 const formEl = document.getElementById('topup-form');
 const historyEl = document.getElementById('topup-history');
 const refreshButtonEl = document.getElementById('refresh-wallet');
+const methodEl = document.getElementById('method');
+const proofInputEl = document.getElementById('proof');
+const qrisBoxEl = document.getElementById('qris-box');
+const proofHintEl = document.getElementById('proof-hint');
 
 let currentUser = null;
 
@@ -72,6 +76,18 @@ function attachQuickAmountButtons() {
   });
 }
 
+function syncPaymentMethodUI() {
+  const method = methodEl.value;
+  const isManualTransfer = method === 'manual_transfer';
+  const isQris = method === 'qris_static';
+
+  proofInputEl.required = isManualTransfer;
+  qrisBoxEl.classList.toggle('hidden', !isQris);
+  proofHintEl.textContent = isManualTransfer
+    ? 'Wajib untuk transfer manual. Format: JPG/PNG/WebP (maks 2MB).'
+    : 'Bukti transfer disarankan untuk memudahkan verifikasi admin. Format: JPG/PNG/WebP (maks 2MB).';
+}
+
 async function refreshData() {
   const [walletData, trxData] = await Promise.all([getWallet(), getTransactions()]);
   renderBalance(walletData.balance);
@@ -85,9 +101,8 @@ async function onTopupSubmit(event) {
 
   try {
     const amount = Number(document.getElementById('amount').value);
-    const method = document.getElementById('method').value;
-    const proofInput = document.getElementById('proof');
-    const selectedFile = proofInput.files?.[0] || null;
+    const method = methodEl.value;
+    const selectedFile = proofInputEl.files?.[0] || null;
     let proofImageUrl = null;
 
     if (!amount || amount <= 0) {
@@ -112,6 +127,7 @@ async function onTopupSubmit(event) {
     const result = await submitTopup(payload);
     showToast(`${result.message}. Menunggu konfirmasi admin.`, 'success', 3800);
     formEl.reset();
+    syncPaymentMethodUI();
     await refreshData();
   } catch (error) {
     showToast(error.message, 'error', 4200);
@@ -127,6 +143,8 @@ async function bootstrap() {
 
   attachQuickAmountButtons();
   formEl.addEventListener('submit', onTopupSubmit);
+  methodEl.addEventListener('change', syncPaymentMethodUI);
+  syncPaymentMethodUI();
 
   refreshButtonEl.addEventListener('click', () => {
     refreshData()

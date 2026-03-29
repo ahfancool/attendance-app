@@ -1,5 +1,12 @@
 import { logout, requireAuth } from '../auth.js';
-import { confirmTopup, getAdminTopups, getAdminUsers, revokeVoucher } from '../admin.js';
+import {
+  confirmTopup,
+  getAdminTopups,
+  getAdminUsers,
+  getPackagesForAdmin,
+  importVoucherPoolCsv,
+  revokeVoucher
+} from '../admin.js';
 import { escapeHtml, formatCurrency, formatDate, setButtonBusy, showToast, statusLabel } from '../ui.js';
 
 const userNameEl = document.getElementById('user-name');
@@ -9,16 +16,33 @@ const topupsBodyEl = document.getElementById('topups-body');
 const refreshButtonEl = document.getElementById('refresh-admin');
 const revokeFormEl = document.getElementById('revoke-form');
 
+const importFormEl = document.getElementById('import-voucher-form');
+const importPackageEl = document.getElementById('import-package');
+const importBatchEl = document.getElementById('import-batch');
+const importCsvEl = document.getElementById('import-csv');
+const importSummaryEl = document.getElementById('import-summary');
+
 const state = {
   topups: [],
   users: [],
-  usersById: new Map()
+  usersById: new Map(),
+  packages: []
 };
 
 function renderSummary() {
   summaryUsersEl.textContent = `${state.users.length} user`;
   const pendingCount = state.topups.filter((item) => item.status === 'pending').length;
   summaryPendingEl.textContent = `${pendingCount} topup pending`;
+}
+
+function renderPackageOptions() {
+  const options = ['<option value="">Pilih paket...</option>'];
+  state.packages.forEach((pkg) => {
+    options.push(
+      `<option value="${escapeHtml(pkg.id)}">${escapeHtml(pkg.name)} - ${formatCurrency(pkg.price)}</option>`
+    );
+  });
+  importPackageEl.innerHTML = options.join('');
 }
 
 function buildActionButtons(item) {
@@ -99,6 +123,58 @@ async function refreshData() {
   renderTopupsTable();
 }
 
+async function refreshPackages() {
+  const packageRes = await getPackagesForAdmin();
+  state.packages = packageRes.packages || [];
+  renderPackageOptions();
+}
+
+function renderImportSummary(result) {
+  importSummaryEl.innerHTML = `
+    <div class="meta"><span>Paket</span><strong>${escapeHtml(result.package?.name || '-')}</strong></div>
+    <div class="meta"><span>Baris Dibaca</span><strong>${result.requested_rows}</strong></div>
+    <div class="meta"><span>Berhasil Masuk Pool</span><strong>${result.inserted_rows}</strong></div>
+    <div class="meta"><span>Dilewati</span><strong>${result.skipped_rows}</strong></div>
+    <div class="meta"><span>Duplikat (DB)</span><strong>${result.skipped_duplicate_in_database}</strong></div>
+  `;
+}
+
+async function onImportVoucherSubmit(event) {
+  event.preventDefault();
+  const submitButton = importFormEl.querySelector('button[type="submit"]');
+  setButtonBusy(submitButton, true, 'Mengimpor voucher...');
+  importSummaryEl.textContent = '';
+
+  try {
+    const packageId = importPackageEl.value;
+    const csvFile = importCsvEl.files?.[0] || null;
+
+    if (!packageId) {
+      throw new Error('Pilih paket terlebih dahulu');
+    }
+    if (!csvFile) {
+      throw new Error('File CSV wajib dipilih');
+    }
+
+    const csvText = await csvFile.text();
+    const batchCode = importBatchEl.value.trim() || null;
+
+    const result = await importVoucherPoolCsv({
+      package_id: packageId,
+      csv_text: csvText,
+      batch_code: batchCode
+    });
+
+    renderImportSummary(result);
+    showToast(result.message || 'Import voucher selesai', 'success', 4200);
+    importCsvEl.value = '';
+  } catch (error) {
+    showToast(error.message, 'error', 4200);
+  } finally {
+    setButtonBusy(submitButton, false);
+  }
+}
+
 async function onRevokeSubmit(event) {
   event.preventDefault();
   const input = document.getElementById('voucher-username');
@@ -134,10 +210,12 @@ async function bootstrap() {
   });
 
   revokeFormEl.addEventListener('submit', onRevokeSubmit);
+  importFormEl.addEventListener('submit', onImportVoucherSubmit);
 
-  await refreshData();
+  await Promise.all([refreshData(), refreshPackages()]);
 }
 
 bootstrap().catch((error) => {
   showToast(error.message || 'Gagal memuat panel admin', 'error', 4200);
 });
+

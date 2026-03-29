@@ -382,6 +382,39 @@ th {
   padding: 0.35rem 0.7rem;
 }
 
+.qris-box {
+  border: 1px solid #cce5e0;
+  border-radius: 12px;
+  background: #f5fffc;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.qris-box-card {
+  border: 1px solid #d5e9e4;
+  border-radius: 12px;
+  padding: 0.5rem;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+}
+
+.qris-image {
+  width: min(340px, 100%);
+  border-radius: 10px;
+}
+
+#import-summary {
+  margin-top: 0.85rem;
+  border: 1px solid #d5e7e3;
+  border-radius: 12px;
+  background: #f8fffd;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
 .hidden {
   display: none !important;
 }

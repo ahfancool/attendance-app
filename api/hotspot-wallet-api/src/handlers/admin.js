@@ -11,10 +11,133 @@ import {
   createTransaction,
   getAllUsers,
   getAllTopups,
+  getPackageById,
   updateVoucherStatusByUsername,
   deleteProofImageByUrl,
-  clearTopupProof
+  clearTopupProof,
+  importVoucherPoolRows
 } from '../utils/supabase.js';
+
+const MAX_IMPORT_ROWS = 3000;
+
+function normalizeCsvCell(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^"(.*)"$/s, '$1')
+    .trim();
+}
+
+function splitCsvLine(line, delimiter) {
+  const columns = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === '"' && inQuotes && next === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      columns.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  columns.push(current);
+  return columns.map((item) => normalizeCsvCell(item));
+}
+
+function detectDelimiter(line) {
+  const checks = [
+    { delimiter: ',', count: (line.match(/,/g) || []).length },
+    { delimiter: ';', count: (line.match(/;/g) || []).length },
+    { delimiter: '\t', count: (line.match(/\t/g) || []).length }
+  ].sort((a, b) => b.count - a.count);
+
+  return checks[0].count > 0 ? checks[0].delimiter : ',';
+}
+
+function parseVoucherCsv(csvText) {
+  const lines = String(csvText || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    throw new Error('CSV kosong. Isi file voucher terlebih dahulu.');
+  }
+
+  const delimiter = detectDelimiter(lines[0]);
+  const firstColumns = splitCsvLine(lines[0], delimiter).map((item) => item.toLowerCase());
+
+  const usernameKeys = new Set(['username', 'user', 'voucher', 'kode', 'code']);
+  const passwordKeys = new Set(['password', 'pass', 'pwd']);
+
+  const headerUserIndex = firstColumns.findIndex((name) => usernameKeys.has(name));
+  const headerPassIndex = firstColumns.findIndex((name) => passwordKeys.has(name));
+  const hasHeader = headerUserIndex !== -1 && headerPassIndex !== -1;
+
+  const usernameIndex = hasHeader ? headerUserIndex : 0;
+  const passwordIndex = hasHeader ? headerPassIndex : 1;
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  if (!dataLines.length) {
+    throw new Error('CSV tidak memiliki data voucher.');
+  }
+
+  const seenUsernames = new Set();
+  const rows = [];
+  let skippedInvalid = 0;
+  let skippedDuplicateInFile = 0;
+
+  dataLines.forEach((line) => {
+    const columns = splitCsvLine(line, delimiter);
+    const username = normalizeCsvCell(columns[usernameIndex]);
+    const password = normalizeCsvCell(columns[passwordIndex]);
+
+    if (!username || !password) {
+      skippedInvalid += 1;
+      return;
+    }
+
+    if (seenUsernames.has(username)) {
+      skippedDuplicateInFile += 1;
+      return;
+    }
+
+    seenUsernames.add(username);
+    rows.push({ username, password });
+  });
+
+  if (!rows.length) {
+    throw new Error('Tidak ada baris voucher valid di CSV.');
+  }
+
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw new Error(`Jumlah voucher melebihi batas ${MAX_IMPORT_ROWS} baris per impor.`);
+  }
+
+  return {
+    rows,
+    skipped_invalid: skippedInvalid,
+    skipped_duplicate_in_file: skippedDuplicateInFile,
+    has_header: hasHeader,
+    delimiter: delimiter === '\t' ? 'tab' : delimiter
+  };
+}
 
 async function requireAdmin(request, env) {
   const token = getBearerToken(request);
@@ -153,6 +276,77 @@ export async function handleRevokeVoucher(request, env) {
     });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);
+  }
+}
+
+export async function handleAdminImportVoucherPool(request, env) {
+  const adminCheck = await requireAdmin(request, env);
+  if (adminCheck.error) {
+    return jsonResponse({ error: adminCheck.error }, adminCheck.status);
+  }
+
+  try {
+    const body = await request.json();
+    const { package_id, csv_text, batch_code } = body;
+
+    if (!package_id) {
+      return jsonResponse({ error: 'Package ID wajib diisi' }, 400);
+    }
+
+    if (!csv_text || !String(csv_text).trim()) {
+      return jsonResponse({ error: 'File CSV wajib diisi' }, 400);
+    }
+
+    const pkg = await getPackageById(package_id, env);
+    if (!pkg) {
+      return jsonResponse({ error: 'Paket tidak ditemukan' }, 404);
+    }
+
+    const parsed = parseVoucherCsv(csv_text);
+    const normalizedBatch = String(batch_code || '').trim() || null;
+    const nowIso = new Date().toISOString();
+
+    const payloadRows = parsed.rows.map((item) => ({
+      package_id,
+      username: item.username,
+      password: item.password,
+      status: 'available',
+      source: 'csv_import',
+      batch_code: normalizedBatch,
+      generated_at: nowIso,
+      note: `imported_by_admin:${adminCheck.payload.sub}`
+    }));
+
+    const inserted = await importVoucherPoolRows(payloadRows, env);
+    const insertedCount = Array.isArray(inserted) ? inserted.length : 0;
+    const skippedDbDuplicate = payloadRows.length - insertedCount;
+    const skippedTotal =
+      parsed.skipped_invalid + parsed.skipped_duplicate_in_file + skippedDbDuplicate;
+
+    return jsonResponse({
+      message: `Import selesai. ${insertedCount} voucher berhasil ditambahkan.`,
+      package: {
+        id: pkg.id,
+        name: pkg.name
+      },
+      requested_rows: payloadRows.length,
+      inserted_rows: insertedCount,
+      skipped_rows: skippedTotal,
+      skipped_invalid_rows: parsed.skipped_invalid,
+      skipped_duplicate_in_file: parsed.skipped_duplicate_in_file,
+      skipped_duplicate_in_database: skippedDbDuplicate,
+      detected_delimiter: parsed.delimiter,
+      detected_header: parsed.has_header
+    });
+  } catch (error) {
+    const message = String(error?.message || 'Terjadi kesalahan saat impor CSV');
+    const isValidationError =
+      message.includes('CSV') ||
+      message.includes('baris') ||
+      message.includes('Package ID') ||
+      message.includes('Paket');
+
+    return jsonResponse({ error: message }, isValidationError ? 400 : 500);
   }
 }
 

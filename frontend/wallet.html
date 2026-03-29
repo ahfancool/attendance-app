@@ -71,10 +71,26 @@
               </select>
             </div>
 
+            <div id="qris-box" class="qris-box">
+              <label>QRIS Statis</label>
+              <div class="qris-box-card">
+                <img
+                  class="qris-image"
+                  src="./assets/qris_statis.jpeg"
+                  alt="QRIS Statis Pembayaran Topup Hotspot"
+                />
+              </div>
+              <small class="muted"
+                >Scan QRIS di atas, lakukan pembayaran sesuai nominal topup, lalu upload bukti.</small
+              >
+            </div>
+
             <div>
               <label for="proof">Upload Bukti Transfer</label>
               <input id="proof" type="file" accept="image/png,image/jpeg,image/webp" />
-              <small class="muted">Wajib untuk transfer manual. Format: JPG/PNG/WebP (maks 2MB).</small>
+              <small id="proof-hint" class="muted"
+                >Wajib untuk transfer manual. Format: JPG/PNG/WebP (maks 2MB).</small
+              >
             </div>
 
             <button class="btn" type="submit">Ajukan Topup</button>

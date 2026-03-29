@@ -280,6 +280,24 @@ export async function releasePoolVoucher(poolId, reason, env) {
   );
 }
 
+export async function importVoucherPoolRows(rows, env) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return [];
+  }
+
+  return supabaseRequest(
+    'voucher_pool?on_conflict=username',
+    {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=ignore-duplicates,return=representation'
+      },
+      body: JSON.stringify(rows)
+    },
+    env
+  );
+}
+
 // VOUCHERS
 export async function createVoucher(voucherData, env) {
   return supabaseRequest(

@@ -65,6 +65,34 @@
         </article>
 
         <article class="panel">
+          <h2>Import Voucher Pool (CSV)</h2>
+          <form id="import-voucher-form" class="form-grid">
+            <div>
+              <label for="import-package">Paket Voucher</label>
+              <select id="import-package" required>
+                <option value="">Pilih paket...</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="import-batch">Kode Batch (opsional)</label>
+              <input id="import-batch" type="text" placeholder="Contoh: MIKHMON-20260329-A" />
+            </div>
+
+            <div>
+              <label for="import-csv">File CSV Voucher</label>
+              <input id="import-csv" type="file" accept=".csv,text/csv" required />
+              <small class="muted"
+                >Format: `username,password` (boleh ada header), delimiter koma/semicolon/tab.</small
+              >
+            </div>
+
+            <button class="btn" type="submit">Import CSV</button>
+          </form>
+          <div id="import-summary" class="muted"></div>
+        </article>
+
+        <article class="panel">
           <h2>Revoke Voucher</h2>
           <form id="revoke-form" class="form-grid">
             <div>
