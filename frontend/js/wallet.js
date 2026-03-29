@@ -7,6 +7,16 @@ export async function submitTopup(payload) {
   });
 }
 
+export async function uploadTopupProof(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiRequest('/api/upload-proof', {
+    method: 'POST',
+    body: formData
+  });
+}
+
 export async function getWallet() {
   return apiRequest('/api/wallet');
 }

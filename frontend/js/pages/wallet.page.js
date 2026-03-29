@@ -1,5 +1,5 @@
 import { requireAuth, logout } from '../auth.js';
-import { getTransactions, getWallet, submitTopup } from '../wallet.js';
+import { getTransactions, getWallet, submitTopup, uploadTopupProof } from '../wallet.js';
 import { formatCurrency, formatDate, setButtonBusy, showToast, statusLabel } from '../ui.js';
 
 const userNameEl = document.getElementById('user-name');
@@ -84,10 +84,29 @@ async function onTopupSubmit(event) {
   setButtonBusy(submitButton, true, 'Mengirim topup...');
 
   try {
+    const amount = Number(document.getElementById('amount').value);
+    const method = document.getElementById('method').value;
+    const proofInput = document.getElementById('proof');
+    const selectedFile = proofInput.files?.[0] || null;
+    let proofImageUrl = null;
+
+    if (!amount || amount <= 0) {
+      throw new Error('Nominal topup tidak valid');
+    }
+
+    if (method === 'manual_transfer' && !selectedFile) {
+      throw new Error('Bukti transfer wajib diupload untuk metode manual transfer');
+    }
+
+    if (selectedFile) {
+      const uploadResult = await uploadTopupProof(selectedFile);
+      proofImageUrl = uploadResult.proof_image_url || null;
+    }
+
     const payload = {
-      amount: Number(document.getElementById('amount').value),
-      method: document.getElementById('method').value,
-      proof_image_url: document.getElementById('proof').value.trim() || null
+      amount,
+      method,
+      proof_image_url: proofImageUrl
     };
 
     const result = await submitTopup(payload);

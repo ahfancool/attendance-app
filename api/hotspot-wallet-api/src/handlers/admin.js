@@ -11,7 +11,9 @@ import {
   createTransaction,
   getAllUsers,
   getAllTopups,
-  updateVoucherStatusByUsername
+  updateVoucherStatusByUsername,
+  deleteProofImageByUrl,
+  clearTopupProof
 } from '../utils/supabase.js';
 
 async function requireAdmin(request, env) {
@@ -84,6 +86,7 @@ export async function handleConfirmTopup(request, env) {
     if (action === 'confirm') {
       const wallet = await getWalletByUserId(topup.user_id, env);
       const newBalance = (wallet ? wallet.balance : 0) + topup.amount;
+      let cleanupWarning = null;
 
       await updateWalletBalance(topup.user_id, newBalance, env);
       await updateTopupStatus(topup_id, 'confirmed', adminCheck.payload.sub, env);
@@ -100,9 +103,19 @@ export async function handleConfirmTopup(request, env) {
         env
       );
 
+      if (topup.proof_image_url) {
+        try {
+          await deleteProofImageByUrl(topup.proof_image_url, env);
+          await clearTopupProof(topup_id, env);
+        } catch (cleanupError) {
+          cleanupWarning = `Topup sukses, namun bukti belum terhapus otomatis: ${cleanupError.message}`;
+        }
+      }
+
       return jsonResponse({
         message: 'Topup berhasil dikonfirmasi',
-        new_balance: newBalance
+        new_balance: newBalance,
+        ...(cleanupWarning ? { warning: cleanupWarning } : {})
       });
     }
 

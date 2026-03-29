@@ -7,13 +7,35 @@ import {
   getWalletByUserId,
   createTopup,
   createTransaction,
-  getUserTransactions
+  getUserTransactions,
+  uploadProofImage
 } from '../utils/supabase.js';
+
+const MAX_PROOF_FILE_SIZE = 2 * 1024 * 1024;
+const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function normalizeExtFromType(mimeType = '') {
+  const map = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp'
+  };
+  return map[mimeType] || 'bin';
+}
+
+function buildProofObjectPath(userId, mimeType) {
+  const ext = normalizeExtFromType(mimeType);
+  return `${userId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+}
+
+function getAuthPayload(request, secret) {
+  const token = getBearerToken(request);
+  return verifyJWT(token, secret);
+}
 
 export async function handleGetWallet(request, env) {
   try {
-    const token = getBearerToken(request);
-    const payload = await verifyJWT(token, env.JWT_SECRET);
+    const payload = await getAuthPayload(request, env.JWT_SECRET);
     if (!payload) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }
@@ -31,8 +53,7 @@ export async function handleGetWallet(request, env) {
 
 export async function handleTopup(request, env) {
   try {
-    const token = getBearerToken(request);
-    const payload = await verifyJWT(token, env.JWT_SECRET);
+    const payload = await getAuthPayload(request, env.JWT_SECRET);
     if (!payload) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }
@@ -46,6 +67,10 @@ export async function handleTopup(request, env) {
 
     if (!method || !['manual_transfer', 'qris_static'].includes(method)) {
       return jsonResponse({ error: 'Metode topup tidak valid' }, 400);
+    }
+
+    if (method === 'manual_transfer' && !proof_image_url) {
+      return jsonResponse({ error: 'Bukti transfer wajib untuk metode manual transfer' }, 400);
     }
 
     const topup = await createTopup(
@@ -89,10 +114,60 @@ export async function handleTopup(request, env) {
   }
 }
 
+export async function handleUploadProof(request, env) {
+  try {
+    const payload = await getAuthPayload(request, env.JWT_SECRET);
+    if (!payload) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
+    const contentType = request.headers.get('content-type') || '';
+    if (!contentType.includes('multipart/form-data')) {
+      return jsonResponse({ error: 'Format upload tidak valid. Gunakan multipart/form-data.' }, 400);
+    }
+
+    const formData = await request.formData();
+    const file = formData.get('file');
+
+    if (!file || typeof file.arrayBuffer !== 'function') {
+      return jsonResponse({ error: 'File bukti wajib diisi' }, 400);
+    }
+
+    if (!ALLOWED_PROOF_TYPES.has(file.type)) {
+      return jsonResponse({ error: 'Tipe file tidak didukung. Gunakan JPG/PNG/WebP.' }, 400);
+    }
+
+    if (file.size > MAX_PROOF_FILE_SIZE) {
+      return jsonResponse({ error: 'Ukuran file terlalu besar (maksimal 2MB).' }, 400);
+    }
+
+    const objectPath = buildProofObjectPath(payload.sub, file.type);
+    const bytes = await file.arrayBuffer();
+    const uploaded = await uploadProofImage(
+      {
+        objectPath,
+        contentType: file.type,
+        bytes
+      },
+      env
+    );
+
+    return jsonResponse(
+      {
+        message: 'Bukti transfer berhasil diupload',
+        proof_image_url: uploaded.public_url,
+        proof_object_path: uploaded.object_path
+      },
+      201
+    );
+  } catch (error) {
+    return jsonResponse({ error: error.message }, 500);
+  }
+}
+
 export async function handleTransactions(request, env) {
   try {
-    const token = getBearerToken(request);
-    const payload = await verifyJWT(token, env.JWT_SECRET);
+    const payload = await getAuthPayload(request, env.JWT_SECRET);
     if (!payload) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }

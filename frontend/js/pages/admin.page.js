@@ -1,6 +1,6 @@
 import { logout, requireAuth } from '../auth.js';
 import { confirmTopup, getAdminTopups, getAdminUsers, revokeVoucher } from '../admin.js';
-import { formatCurrency, formatDate, setButtonBusy, showToast, statusLabel } from '../ui.js';
+import { escapeHtml, formatCurrency, formatDate, setButtonBusy, showToast, statusLabel } from '../ui.js';
 
 const userNameEl = document.getElementById('user-name');
 const summaryUsersEl = document.getElementById('summary-users');
@@ -34,9 +34,18 @@ function buildActionButtons(item) {
   `;
 }
 
+function buildProofCell(item) {
+  if (!item.proof_image_url) {
+    return '<span class="muted">Tidak ada</span>';
+  }
+
+  const safeUrl = escapeHtml(item.proof_image_url);
+  return `<a class="btn btn-soft" href="${safeUrl}" target="_blank" rel="noopener noreferrer">Lihat Bukti</a>`;
+}
+
 function renderTopupsTable() {
   if (!state.topups.length) {
-    topupsBodyEl.innerHTML = '<tr><td colspan="6">Belum ada data topup.</td></tr>';
+    topupsBodyEl.innerHTML = '<tr><td colspan="7">Belum ada data topup.</td></tr>';
     return;
   }
 
@@ -48,6 +57,7 @@ function renderTopupsTable() {
           <td>${state.usersById.get(item.user_id)?.name || item.user_id}</td>
           <td>${formatCurrency(item.amount)}</td>
           <td>${item.method}</td>
+          <td>${buildProofCell(item)}</td>
           <td>${statusLabel(item.status)}</td>
           <td>${buildActionButtons(item)}</td>
         </tr>
@@ -64,8 +74,11 @@ function renderTopupsTable() {
       setButtonBusy(button, true, busyText);
 
       try {
-        await confirmTopup(topupId, action);
-        showToast(`Topup berhasil di-${action === 'confirm' ? 'confirm' : 'reject'}`, 'success');
+        const result = await confirmTopup(topupId, action);
+        showToast(result.message || `Topup berhasil di-${action === 'confirm' ? 'confirm' : 'reject'}`, 'success');
+        if (result.warning) {
+          showToast(result.warning, 'error', 4600);
+        }
         await refreshData();
       } catch (error) {
         showToast(error.message, 'error');

@@ -10,14 +10,30 @@ function buildSupabaseBaseUrl(env) {
   return baseUrl;
 }
 
-async function supabaseRequest(endpoint, options = {}, env) {
-  const baseUrl = buildSupabaseBaseUrl(env);
-  const url = `${baseUrl}/rest/v1/${endpoint}`;
-
+function getSupabaseApiKey(env) {
   const apiKey = (env.SUPABASE_KEY || '').trim();
   if (!apiKey) {
     throw new Error('SUPABASE_KEY kosong');
   }
+  return apiKey;
+}
+
+function getProofBucket(env) {
+  return (env.PROOF_BUCKET || 'payment-proofs').trim();
+}
+
+function encodeStoragePath(path) {
+  return String(path || '')
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
+async function supabaseRequest(endpoint, options = {}, env) {
+  const baseUrl = buildSupabaseBaseUrl(env);
+  const url = `${baseUrl}/rest/v1/${endpoint}`;
+
+  const apiKey = getSupabaseApiKey(env);
 
   const headers = {
     apikey: apiKey,
@@ -56,6 +72,99 @@ async function supabaseRequest(endpoint, options = {}, env) {
   } catch {
     return {};
   }
+}
+
+function getStorageErrorMessage(rawText, status) {
+  if (!rawText) {
+    return `Supabase Storage Error ${status}`;
+  }
+
+  try {
+    const payload = JSON.parse(rawText);
+    return payload.error || payload.message || rawText;
+  } catch {
+    return rawText;
+  }
+}
+
+function formatUploadErrorMessage(rawText, status, bucket) {
+  const detail = getStorageErrorMessage(rawText, status);
+  if (detail.toLowerCase().includes('bucket not found')) {
+    return `Bucket storage "${bucket}" belum ada. Buat bucket public dengan nama "${bucket}" di Supabase Storage.`;
+  }
+  return detail;
+}
+
+export async function uploadProofImage({ objectPath, contentType, bytes }, env) {
+  const baseUrl = buildSupabaseBaseUrl(env);
+  const apiKey = getSupabaseApiKey(env);
+  const bucket = getProofBucket(env);
+  const encodedPath = encodeStoragePath(objectPath);
+  const uploadUrl = `${baseUrl}/storage/v1/object/${bucket}/${encodedPath}`;
+
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': contentType || 'application/octet-stream',
+      'x-upsert': 'false'
+    },
+    body: bytes
+  });
+
+  if (!response.ok) {
+    const raw = await response.text().catch(() => '');
+    throw new Error(formatUploadErrorMessage(raw, response.status, bucket));
+  }
+
+  const publicUrl = `${baseUrl}/storage/v1/object/public/${bucket}/${encodedPath}`;
+  return {
+    object_path: objectPath,
+    public_url: publicUrl
+  };
+}
+
+function extractProofObjectPath(proofUrl, bucket) {
+  const parsed = new URL(proofUrl);
+  const publicPrefix = `/storage/v1/object/public/${bucket}/`;
+  const privatePrefix = `/storage/v1/object/${bucket}/`;
+
+  if (parsed.pathname.startsWith(publicPrefix)) {
+    return decodeURIComponent(parsed.pathname.slice(publicPrefix.length));
+  }
+
+  if (parsed.pathname.startsWith(privatePrefix)) {
+    return decodeURIComponent(parsed.pathname.slice(privatePrefix.length));
+  }
+
+  throw new Error('Format URL bukti tidak dikenali');
+}
+
+export async function deleteProofImageByUrl(proofUrl, env) {
+  if (!proofUrl) return { deleted: false };
+
+  const baseUrl = buildSupabaseBaseUrl(env);
+  const apiKey = getSupabaseApiKey(env);
+  const bucket = getProofBucket(env);
+  const objectPath = extractProofObjectPath(proofUrl, bucket);
+  const encodedPath = encodeStoragePath(objectPath);
+  const deleteUrl = `${baseUrl}/storage/v1/object/${bucket}/${encodedPath}`;
+
+  const response = await fetch(deleteUrl, {
+    method: 'DELETE',
+    headers: {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`
+    }
+  });
+
+  if (!response.ok) {
+    const raw = await response.text().catch(() => '');
+    throw new Error(getStorageErrorMessage(raw, response.status));
+  }
+
+  return { deleted: true, object_path: objectPath };
 }
 
 // USERS
@@ -231,6 +340,20 @@ export async function updateTopupStatus(topupId, status, confirmedBy, env) {
         status,
         confirmed_by: confirmedBy,
         confirmed_at: status === 'confirmed' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString()
+      })
+    },
+    env
+  );
+}
+
+export async function clearTopupProof(topupId, env) {
+  return supabaseRequest(
+    `topups?id=eq.${topupId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        proof_image_url: null,
         updated_at: new Date().toISOString()
       })
     },

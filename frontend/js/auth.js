@@ -45,9 +45,10 @@ export function clearSession() {
 export async function apiRequest(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
   const token = getToken();
+  const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
   const headers = {
-    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
     ...(options.headers || {})
   };
 

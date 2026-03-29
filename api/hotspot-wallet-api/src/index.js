@@ -4,7 +4,12 @@
  */
 
 import { handleRegister, handleLogin, handleMe } from './handlers/auth.js';
-import { handleGetWallet, handleTopup, handleTransactions } from './handlers/wallet.js';
+import {
+  handleGetWallet,
+  handleTopup,
+  handleTransactions,
+  handleUploadProof
+} from './handlers/wallet.js';
 import { handleGetPackages, handleBuyVoucher, handleMyVouchers } from './handlers/voucher.js';
 import {
   handleAdminUsers,
@@ -79,6 +84,10 @@ export default {
 
       if (path === '/api/topup' && request.method === 'POST') {
         return addCORS(await handleTopup(request, env), env);
+      }
+
+      if (path === '/api/upload-proof' && request.method === 'POST') {
+        return addCORS(await handleUploadProof(request, env), env);
       }
 
       if (path === '/api/transactions' && request.method === 'GET') {
