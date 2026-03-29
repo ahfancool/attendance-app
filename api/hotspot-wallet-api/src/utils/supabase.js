@@ -269,7 +269,7 @@ export async function getAllUsers(env) {
 
 export async function getAllTopups(env) {
   return supabaseRequest(
-    'topups?select=*,users(name,email)&order=created_at.desc',
+    'topups?select=*&order=created_at.desc',
     { method: 'GET' },
     env
   );

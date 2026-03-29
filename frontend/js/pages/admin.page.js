@@ -11,7 +11,8 @@ const revokeFormEl = document.getElementById('revoke-form');
 
 const state = {
   topups: [],
-  users: []
+  users: [],
+  usersById: new Map()
 };
 
 function renderSummary() {
@@ -44,7 +45,7 @@ function renderTopupsTable() {
       (item) => `
         <tr>
           <td>${formatDate(item.created_at)}</td>
-          <td>${item.users?.name || item.user_id}</td>
+          <td>${state.usersById.get(item.user_id)?.name || item.user_id}</td>
           <td>${formatCurrency(item.amount)}</td>
           <td>${item.method}</td>
           <td>${statusLabel(item.status)}</td>
@@ -79,6 +80,7 @@ async function refreshData() {
   const [topupRes, usersRes] = await Promise.all([getAdminTopups(), getAdminUsers()]);
   state.topups = topupRes.topups || [];
   state.users = usersRes.users || [];
+  state.usersById = new Map(state.users.map((user) => [user.id, user]));
 
   renderSummary();
   renderTopupsTable();
