@@ -160,9 +160,9 @@ declare
 begin
   select *
   into picked
-  from public.voucher_pool
-  where package_id = p_package_id
-    and status = 'available'
+  from public.voucher_pool vp
+  where vp.package_id = p_package_id
+    and vp.status = 'available'
   order by created_at asc
   for update skip locked
   limit 1;

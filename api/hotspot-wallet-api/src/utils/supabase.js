@@ -33,12 +33,29 @@ async function supabaseRequest(endpoint, options = {}, env) {
   });
 
   if (!response.ok) {
-    const errorPayload = await response.json().catch(() => ({}));
-    const detail = errorPayload.message || errorPayload.error_description || `Supabase Error ${response.status}`;
+    const errorRaw = await response.text().catch(() => '');
+    let errorPayload = {};
+    try {
+      errorPayload = errorRaw ? JSON.parse(errorRaw) : {};
+    } catch {
+      errorPayload = {};
+    }
+    const detail =
+      errorPayload.message ||
+      errorPayload.error_description ||
+      errorRaw ||
+      `Supabase Error ${response.status}`;
     throw new Error(detail);
   }
 
-  return response.json();
+  const raw = await response.text().catch(() => '');
+  if (!raw) return {};
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
 }
 
 // USERS
