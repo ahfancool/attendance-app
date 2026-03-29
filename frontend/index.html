@@ -1,14 +1,75 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Attendance App</title>
-</head>
-<body>
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hotspot Wallet Sekolah</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">HW</span>
+          <div>
+            <div>Hotspot Wallet Sekolah</div>
+            <small class="muted">Portal voucher sebelum login internet</small>
+          </div>
+        </div>
+      </header>
 
-<h1>QR Attendance</h1>
+      <main class="layout">
+        <section class="auth-grid">
+          <article class="panel auth-hero">
+            <h1>Internet sekolah tanpa ribet</h1>
+            <p>Tujuan flow ini sederhana: user login portal, pilih paket, lalu cukup 1 klik voucher untuk langsung online tanpa mengetik username/password hotspot manual.</p>
+            <p class="kicker">Sistem compatible untuk RouterOS v6 + tunnel.web.id.</p>
+          </article>
 
-<button onclick="pingAPI()">Test API</button>
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Masuk / Daftar</h2>
+              <div class="tabs">
+                <button class="tab active" id="tab-login" type="button">Login</button>
+                <button class="tab" id="tab-register" type="button">Register</button>
+              </div>
+            </div>
 
-<script src="app.js"></script>
-</body>
+            <form id="login-form" class="form-grid">
+              <div>
+                <label for="login-email">Email</label>
+                <input id="login-email" type="email" required />
+              </div>
+              <div>
+                <label for="login-password">Password</label>
+                <input id="login-password" type="password" minlength="6" required />
+              </div>
+              <button class="btn" type="submit">Masuk Dashboard</button>
+            </form>
+
+            <form id="register-form" class="form-grid hidden">
+              <div>
+                <label for="reg-name">Nama Lengkap</label>
+                <input id="reg-name" type="text" required />
+              </div>
+              <div>
+                <label for="reg-email">Email</label>
+                <input id="reg-email" type="email" required />
+              </div>
+              <div>
+                <label for="reg-password">Password</label>
+                <input id="reg-password" type="password" minlength="6" required />
+              </div>
+              <button class="btn" type="submit">Buat Akun</button>
+            </form>
+
+            <p id="auth-status" class="status-text"></p>
+            <small id="hotspot-hint" class="muted"></small>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/pages/index.page.js"></script>
+  </body>
 </html>

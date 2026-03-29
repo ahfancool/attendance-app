@@ -1,0 +1,14 @@
+{
+  "name": "hotspot-wallet-v2",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Sistem dompet koin dan voucher hotspot berbasis Cloudflare Workers + Supabase",
+  "workspaces": [
+    "api/hotspot-wallet-api"
+  ],
+  "scripts": {
+    "dev:api": "npm --prefix api/hotspot-wallet-api run dev",
+    "deploy:api": "npm --prefix api/hotspot-wallet-api run deploy",
+    "test:api": "npm --prefix api/hotspot-wallet-api run test"
+  }
+}

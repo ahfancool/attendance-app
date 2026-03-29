@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Topup Wallet - Hotspot Wallet</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">HW</span>
+          <div>
+            <div>Topup Dompet Koin</div>
+            <small class="muted">Transfer manual / QRIS statis</small>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <a href="./dashboard.html">Dashboard</a>
+          <a class="active" href="./wallet.html">Topup</a>
+          <a href="./transactions.html">Riwayat</a>
+          <a id="nav-admin" class="hidden" href="./admin.html">Admin</a>
+          <button id="logout-btn" type="button">Logout</button>
+        </nav>
+      </header>
+
+      <main class="layout">
+        <section class="hero">
+          <article class="panel hero-stat">
+            <small class="kicker">User</small>
+            <div class="panel-header">
+              <h1 id="user-name">-</h1>
+              <span id="role-badge" class="pill">Siswa</span>
+            </div>
+          </article>
+
+          <article class="panel hero-stat">
+            <small class="kicker">Saldo Saat Ini</small>
+            <div id="wallet-balance" class="stat-value">Rp 0</div>
+            <div class="actions">
+              <button id="refresh-wallet" class="btn btn-soft" type="button">Refresh Saldo</button>
+            </div>
+          </article>
+        </section>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Form Topup</h2>
+            <small class="muted">Status topup menunggu konfirmasi admin</small>
+          </div>
+
+          <form id="topup-form" class="form-grid">
+            <div>
+              <label for="amount">Nominal Topup</label>
+              <input id="amount" type="number" min="1000" required />
+              <div class="quick-amounts">
+                <button class="quick-amount" data-amount="5000" type="button">Rp5.000</button>
+                <button class="quick-amount" data-amount="10000" type="button">Rp10.000</button>
+                <button class="quick-amount" data-amount="20000" type="button">Rp20.000</button>
+                <button class="quick-amount" data-amount="50000" type="button">Rp50.000</button>
+              </div>
+            </div>
+
+            <div>
+              <label for="method">Metode</label>
+              <select id="method">
+                <option value="qris_static">QRIS Statis</option>
+                <option value="manual_transfer">Transfer Manual</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="proof">URL Bukti Transfer (opsional)</label>
+              <input id="proof" type="url" placeholder="https://..." />
+            </div>
+
+            <button class="btn" type="submit">Ajukan Topup</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <h2>Riwayat Topup</h2>
+          <div id="topup-history"></div>
+        </article>
+      </main>
+    </div>
+
+    <script type="module" src="./js/pages/wallet.page.js"></script>
+  </body>
+</html>

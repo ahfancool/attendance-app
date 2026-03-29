@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - Hotspot Wallet</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">HW</span>
+          <div>
+            <div>Admin Control Center</div>
+            <small class="muted">Topup verifikasi dan revoke voucher</small>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <a href="./dashboard.html">Dashboard</a>
+          <a href="./wallet.html">Topup</a>
+          <a href="./transactions.html">Riwayat</a>
+          <a class="active" href="./admin.html">Admin</a>
+          <button id="logout-btn" type="button">Logout</button>
+        </nav>
+      </header>
+
+      <main class="layout">
+        <section class="hero">
+          <article class="panel hero-stat">
+            <small class="kicker">Admin Login</small>
+            <h1 id="user-name">Admin</h1>
+          </article>
+
+          <article class="panel hero-stat">
+            <small class="kicker">Ringkasan</small>
+            <div class="meta"><span>Total User</span><strong id="summary-users">0 user</strong></div>
+            <div class="meta"><span>Menunggu Verifikasi</span><strong id="summary-pending">0 topup pending</strong></div>
+          </article>
+        </section>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Daftar Topup</h2>
+            <button id="refresh-admin" class="btn btn-soft" type="button">Refresh</button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>User</th>
+                  <th>Nominal</th>
+                  <th>Metode</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="topups-body"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Revoke Voucher</h2>
+          <form id="revoke-form" class="form-grid">
+            <div>
+              <label for="voucher-username">Username Voucher</label>
+              <input id="voucher-username" type="text" placeholder="Contoh: V4AB9XZ" required />
+            </div>
+            <button class="btn btn-danger" type="submit">Revoke Voucher</button>
+          </form>
+        </article>
+      </main>
+    </div>
+
+    <script type="module" src="./js/pages/admin.page.js"></script>
+  </body>
+</html>
