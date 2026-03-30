@@ -155,20 +155,23 @@ async function onUseVoucher(voucher, button) {
     const callbackUrl = buildActivationCallbackUrl(voucher.id, activationToken);
     showToast('Menjalankan sponsor... koneksi voucher dilanjutkan 5 detik lagi', 'success', 4200);
 
-    const adsUrl = getRandomAdsLink();
     setTimeout(() => {
-      try {
-        openAdsLink(adsUrl);
-      } catch {
-        // no-op
-      }
-
       try {
         connectVoucher(result.voucher.username, result.voucher.password, { callbackUrl });
       } catch (connectError) {
         showToast(`Gagal mengarahkan login hotspot: ${connectError.message}`, 'error', 5200);
         setButtonBusy(button, false);
+        return;
       }
+
+      setTimeout(() => {
+        try {
+          const adsUrl = getRandomAdsLink();
+          openAdsLink(adsUrl);
+        } catch {
+          // no-op
+        }
+      }, 1000);
     }, 5000);
   } catch (error) {
     showToast(error.message, 'error', 4200);
