@@ -1,5 +1,6 @@
 import { captureHotspotContext, getHotspotHintText } from '../config.js';
 import { requireAuth, logout } from '../auth.js';
+import { getRandomAdsLink, openAdsLink } from '../ads.js';
 import {
   buyVoucher,
   confirmVoucherUse,
@@ -142,6 +143,13 @@ async function processActivationCallback() {
 
 async function onUseVoucher(voucher, button) {
   setButtonBusy(button, true, 'Mengarahkan...');
+  let popupWindow = null;
+
+  try {
+    popupWindow = window.open('about:blank', '_blank', 'noopener,noreferrer');
+  } catch {
+    popupWindow = null;
+  }
 
   try {
     const result = await useVoucher(voucher.id);
@@ -152,9 +160,22 @@ async function onUseVoucher(voucher, button) {
     }
 
     const callbackUrl = buildActivationCallbackUrl(voucher.id, activationToken);
-    showToast('Mengarahkan ke login hotspot...', 'success', 1800);
-    connectVoucher(result.voucher.username, result.voucher.password, { callbackUrl });
+    showToast('Menjalankan sponsor... koneksi voucher dilanjutkan 5 detik lagi', 'success', 4200);
+
+    const adsUrl = getRandomAdsLink();
+    setTimeout(() => {
+      try {
+        openAdsLink(adsUrl, popupWindow);
+      } catch {
+        // no-op
+      }
+
+      connectVoucher(result.voucher.username, result.voucher.password, { callbackUrl });
+    }, 5000);
   } catch (error) {
+    if (popupWindow && !popupWindow.closed) {
+      popupWindow.close();
+    }
     showToast(error.message, 'error', 4200);
     setButtonBusy(button, false);
   }
@@ -303,4 +324,3 @@ async function bootstrap() {
 bootstrap().catch((error) => {
   showToast(error.message || 'Gagal memuat dashboard', 'error', 4200);
 });
-
