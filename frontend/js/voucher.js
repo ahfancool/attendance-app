@@ -59,7 +59,15 @@ export function buildConnectUrl(username, password, options = {}) {
 
 export function connectVoucher(username, password, options = {}) {
   const url = buildConnectUrl(username, password, options);
-  window.location.assign(url);
+  try {
+    window.location.href = url;
+  } catch {
+    try {
+      window.location.assign(url);
+    } catch {
+      window.open(url, '_self');
+    }
+  }
 }
 
 export async function buyAndConnect(packageId) {

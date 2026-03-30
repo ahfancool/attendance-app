@@ -143,13 +143,6 @@ async function processActivationCallback() {
 
 async function onUseVoucher(voucher, button) {
   setButtonBusy(button, true, 'Mengarahkan...');
-  let popupWindow = null;
-
-  try {
-    popupWindow = window.open('about:blank', '_blank', 'noopener,noreferrer');
-  } catch {
-    popupWindow = null;
-  }
 
   try {
     const result = await useVoucher(voucher.id);
@@ -165,17 +158,19 @@ async function onUseVoucher(voucher, button) {
     const adsUrl = getRandomAdsLink();
     setTimeout(() => {
       try {
-        openAdsLink(adsUrl, popupWindow);
+        openAdsLink(adsUrl);
       } catch {
         // no-op
       }
 
-      connectVoucher(result.voucher.username, result.voucher.password, { callbackUrl });
+      try {
+        connectVoucher(result.voucher.username, result.voucher.password, { callbackUrl });
+      } catch (connectError) {
+        showToast(`Gagal mengarahkan login hotspot: ${connectError.message}`, 'error', 5200);
+        setButtonBusy(button, false);
+      }
     }, 5000);
   } catch (error) {
-    if (popupWindow && !popupWindow.closed) {
-      popupWindow.close();
-    }
     showToast(error.message, 'error', 4200);
     setButtonBusy(button, false);
   }
