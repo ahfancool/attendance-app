@@ -14,7 +14,8 @@ import {
   handleGetPackages,
   handleBuyVoucher,
   handleMyVouchers,
-  handleUseVoucher
+  handleUseVoucher,
+  handleConfirmVoucherUse
 } from './handlers/voucher.js';
 import {
   handleAdminUsers,
@@ -110,6 +111,10 @@ export default {
 
       if (path === '/api/use-voucher' && request.method === 'POST') {
         return addCORS(await handleUseVoucher(request, env), env);
+      }
+
+      if (path === '/api/confirm-voucher-use' && request.method === 'POST') {
+        return addCORS(await handleConfirmVoucherUse(request, env), env);
       }
 
       if (path === '/api/my-vouchers' && request.method === 'GET') {

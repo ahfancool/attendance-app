@@ -19,12 +19,23 @@ export async function useVoucher(voucherId) {
   });
 }
 
+export async function confirmVoucherUse(voucherId, activationToken) {
+  return apiRequest('/api/confirm-voucher-use', {
+    method: 'POST',
+    body: JSON.stringify({
+      voucher_id: voucherId,
+      activation_token: activationToken
+    })
+  });
+}
+
 export async function getMyVouchers() {
   return apiRequest('/api/my-vouchers');
 }
 
-export function buildConnectUrl(username, password) {
+export function buildConnectUrl(username, password, options = {}) {
   const rawBase = getHotspotLoginBase();
+  const callbackUrl = options.callbackUrl || '';
 
   let loginUrl;
   try {
@@ -39,12 +50,15 @@ export function buildConnectUrl(username, password) {
 
   loginUrl.searchParams.set('username', username);
   loginUrl.searchParams.set('password', password);
+  if (callbackUrl) {
+    loginUrl.searchParams.set('dst', callbackUrl);
+  }
 
   return loginUrl.toString();
 }
 
-export function connectVoucher(username, password) {
-  const url = buildConnectUrl(username, password);
+export function connectVoucher(username, password, options = {}) {
+  const url = buildConnectUrl(username, password, options);
   window.location.assign(url);
 }
 

@@ -1,6 +1,13 @@
 import { captureHotspotContext, getHotspotHintText } from '../config.js';
 import { requireAuth, logout } from '../auth.js';
-import { buyVoucher, connectVoucher, getMyVouchers, getPackages, useVoucher } from '../voucher.js';
+import {
+  buyVoucher,
+  confirmVoucherUse,
+  connectVoucher,
+  getMyVouchers,
+  getPackages,
+  useVoucher
+} from '../voucher.js';
 import { escapeHtml, formatCurrency, formatDate, setButtonBusy, showToast } from '../ui.js';
 
 const userNameEl = document.getElementById('user-name');
@@ -11,6 +18,8 @@ const packageGridEl = document.getElementById('packages-grid');
 const voucherGridEl = document.getElementById('vouchers-grid');
 const refreshButtonEl = document.getElementById('refresh-dashboard');
 const adminNavEl = document.getElementById('nav-admin');
+
+const ACTIVATION_QUERY_KEYS = ['hw_login', 'hw_voucher_id', 'hw_activation_token'];
 
 const state = {
   me: null,
@@ -76,23 +85,75 @@ function buildVoucherBundles(vouchers) {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+function readActivationContext() {
+  const params = new URLSearchParams(window.location.search);
+  const flag = params.get('hw_login');
+  const voucherId = params.get('hw_voucher_id');
+  const token = params.get('hw_activation_token');
+
+  if (flag !== '1' || !voucherId || !token) {
+    return null;
+  }
+
+  return {
+    voucherId,
+    token
+  };
+}
+
+function clearActivationContextFromUrl() {
+  const url = new URL(window.location.href);
+  ACTIVATION_QUERY_KEYS.forEach((key) => {
+    url.searchParams.delete(key);
+  });
+
+  const next =
+    url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : '') + url.hash;
+  window.history.replaceState({}, '', next);
+}
+
+function buildActivationCallbackUrl(voucherId, activationToken) {
+  const callback = new URL(window.location.href);
+  callback.search = '';
+  callback.hash = '';
+  callback.searchParams.set('hw_login', '1');
+  callback.searchParams.set('hw_voucher_id', voucherId);
+  callback.searchParams.set('hw_activation_token', activationToken);
+  return callback.toString();
+}
+
+async function processActivationCallback() {
+  const ctx = readActivationContext();
+  if (!ctx) return;
+
+  try {
+    const result = await confirmVoucherUse(ctx.voucherId, ctx.token);
+    if (result.already_confirmed) {
+      showToast('Voucher sudah aktif sebelumnya', 'success', 3200);
+      return;
+    }
+    showToast('Aktivasi hotspot berhasil. Jatah hari tercatat terpakai.', 'success', 4200);
+  } catch (error) {
+    showToast(`Aktivasi belum berhasil: ${error.message}`, 'error', 4800);
+  } finally {
+    clearActivationContextFromUrl();
+  }
+}
+
 async function onUseVoucher(voucher, button) {
-  setButtonBusy(button, true, 'Mengaktifkan...');
+  setButtonBusy(button, true, 'Mengarahkan...');
 
   try {
     const result = await useVoucher(voucher.id);
-    const target = state.vouchers.find((item) => item.id === voucher.id);
-    if (target) {
-      target.status = 'used';
-      target.activated_at = new Date().toISOString();
+    const activationToken = result.activation_token;
+
+    if (!activationToken) {
+      throw new Error('Token aktivasi tidak tersedia');
     }
 
-    renderVouchers();
-    showToast('Voucher aktif. Menghubungkan ke hotspot...', 'success', 2600);
-
-    setTimeout(() => {
-      connectVoucher(result.voucher.username, result.voucher.password);
-    }, 650);
+    const callbackUrl = buildActivationCallbackUrl(voucher.id, activationToken);
+    showToast('Mengarahkan ke login hotspot...', 'success', 1800);
+    connectVoucher(result.voucher.username, result.voucher.password, { callbackUrl });
   } catch (error) {
     showToast(error.message, 'error', 4200);
     setButtonBusy(button, false);
@@ -225,6 +286,7 @@ async function bootstrap() {
   state.me = await requireAuth();
   renderTopSection();
 
+  await processActivationCallback();
   await reloadData();
 
   refreshButtonEl.addEventListener('click', () => {

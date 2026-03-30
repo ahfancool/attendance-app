@@ -2,7 +2,7 @@
  * Handler voucher.
  */
 
-import { verifyJWT, getBearerToken } from '../utils/jwt.js';
+import { generateJWT, verifyJWT, getBearerToken } from '../utils/jwt.js';
 import {
   getWalletByUserId,
   updateWalletBalance,
@@ -59,9 +59,39 @@ async function claimBundleFromPool(packageId, bundleSize, env) {
   return null;
 }
 
+function findDailyPackage(packages) {
+  return packages.find((item) => {
+    const text = `${item?.name || ''} ${item?.duration || ''}`.toLowerCase();
+    return Number(item?.price) === 1000 || text.includes('1 hari');
+  });
+}
+
+async function resolveClaimPackageId(purchasedPackage, bundleSize, env) {
+  if (bundleSize <= 1) {
+    return purchasedPackage.id;
+  }
+
+  const activePackages = await getActivePackages(env);
+  const dailyPackage = findDailyPackage(activePackages || []);
+  return dailyPackage?.id || purchasedPackage.id;
+}
+
 function getAuthPayload(request, secret) {
   const token = getBearerToken(request);
   return verifyJWT(token, secret);
+}
+
+async function createActivationToken(userId, voucherId, secret) {
+  return generateJWT(
+    {
+      sub: userId,
+      voucher_id: voucherId,
+      action: 'voucher_use_confirm',
+      nonce: crypto.randomUUID(),
+      exp: Math.floor(Date.now() / 1000) + 10 * 60
+    },
+    secret
+  );
 }
 
 export async function handleGetPackages(_request, env) {
@@ -102,7 +132,8 @@ export async function handleBuyVoucher(request, env) {
     }
 
     const bundleSize = resolveBundleSize(pkg);
-    const claimedPoolRows = await claimBundleFromPool(package_id, bundleSize, env);
+    const claimPackageId = await resolveClaimPackageId(pkg, bundleSize, env);
+    const claimedPoolRows = await claimBundleFromPool(claimPackageId, bundleSize, env);
 
     if (!claimedPoolRows) {
       return jsonResponse(
@@ -234,13 +265,11 @@ export async function handleUseVoucher(request, env) {
       return jsonResponse({ error: 'Voucher ini sudah tidak bisa digunakan lagi' }, 400);
     }
 
-    const updatedRows = await markVoucherUsed(voucher_id, env);
-    if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
-      return jsonResponse({ error: 'Voucher gagal ditandai sebagai terpakai' }, 409);
-    }
+    const activationToken = await createActivationToken(payload.sub, voucher.id, env.JWT_SECRET);
 
     return jsonResponse({
-      message: 'Voucher siap dipakai',
+      message: 'Voucher tervalidasi. Lanjut login hotspot.',
+      activation_token: activationToken,
       voucher: {
         id: voucher.id,
         username: voucher.username,
@@ -248,6 +277,69 @@ export async function handleUseVoucher(request, env) {
         package_name: voucher.packages?.name || null,
         duration: voucher.packages?.duration || null
       }
+    });
+  } catch (error) {
+    return jsonResponse({ error: error.message }, 500);
+  }
+}
+
+export async function handleConfirmVoucherUse(request, env) {
+  try {
+    const payload = await getAuthPayload(request, env.JWT_SECRET);
+    if (!payload) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = await request.json();
+    const { activation_token, voucher_id } = body;
+
+    if (!activation_token) {
+      return jsonResponse({ error: 'Token aktivasi wajib diisi' }, 400);
+    }
+
+    const activationPayload = await verifyJWT(activation_token, env.JWT_SECRET);
+    if (!activationPayload) {
+      return jsonResponse({ error: 'Token aktivasi tidak valid atau kedaluwarsa' }, 401);
+    }
+
+    if (activationPayload.action !== 'voucher_use_confirm') {
+      return jsonResponse({ error: 'Aksi token tidak valid' }, 401);
+    }
+
+    if (activationPayload.sub !== payload.sub) {
+      return jsonResponse({ error: 'Token aktivasi bukan milik user ini' }, 403);
+    }
+
+    const targetVoucherId = voucher_id || activationPayload.voucher_id;
+    if (!targetVoucherId || targetVoucherId !== activationPayload.voucher_id) {
+      return jsonResponse({ error: 'Voucher ID tidak cocok dengan token' }, 400);
+    }
+
+    const voucher = await getVoucherByIdForUser(targetVoucherId, payload.sub, env);
+    if (!voucher) {
+      return jsonResponse({ error: 'Voucher tidak ditemukan' }, 404);
+    }
+
+    if (voucher.status === 'used') {
+      return jsonResponse({
+        message: 'Voucher sudah aktif sebelumnya',
+        already_confirmed: true,
+        voucher_id: voucher.id
+      });
+    }
+
+    if (voucher.status !== 'assigned') {
+      return jsonResponse({ error: 'Status voucher tidak bisa dikonfirmasi' }, 400);
+    }
+
+    const updatedRows = await markVoucherUsed(targetVoucherId, env);
+    if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
+      return jsonResponse({ error: 'Voucher gagal ditandai sebagai terpakai' }, 409);
+    }
+
+    return jsonResponse({
+      message: 'Voucher berhasil diaktifkan',
+      voucher_id: targetVoucherId
     });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);
@@ -277,4 +369,3 @@ function jsonResponse(data, status = 200) {
     headers: { 'Content-Type': 'application/json' }
   });
 }
-
