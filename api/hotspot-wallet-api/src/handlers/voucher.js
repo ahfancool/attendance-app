@@ -285,11 +285,6 @@ export async function handleUseVoucher(request, env) {
 
 export async function handleConfirmVoucherUse(request, env) {
   try {
-    const payload = await getAuthPayload(request, env.JWT_SECRET);
-    if (!payload) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
-    }
-
     const body = await request.json();
     const { activation_token, voucher_id } = body;
 
@@ -306,16 +301,12 @@ export async function handleConfirmVoucherUse(request, env) {
       return jsonResponse({ error: 'Aksi token tidak valid' }, 401);
     }
 
-    if (activationPayload.sub !== payload.sub) {
-      return jsonResponse({ error: 'Token aktivasi bukan milik user ini' }, 403);
-    }
-
     const targetVoucherId = voucher_id || activationPayload.voucher_id;
     if (!targetVoucherId || targetVoucherId !== activationPayload.voucher_id) {
       return jsonResponse({ error: 'Voucher ID tidak cocok dengan token' }, 400);
     }
 
-    const voucher = await getVoucherByIdForUser(targetVoucherId, payload.sub, env);
+    const voucher = await getVoucherByIdForUser(targetVoucherId, activationPayload.sub, env);
     if (!voucher) {
       return jsonResponse({ error: 'Voucher tidak ditemukan' }, 404);
     }

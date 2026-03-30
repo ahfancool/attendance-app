@@ -302,10 +302,10 @@ async function reloadData() {
 async function bootstrap() {
   captureHotspotContext();
 
+  await processActivationCallback();
+
   state.me = await requireAuth();
   renderTopSection();
-
-  await processActivationCallback();
   await reloadData();
 
   refreshButtonEl.addEventListener('click', () => {
