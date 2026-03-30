@@ -13,8 +13,56 @@ import {
   createTransaction,
   claimVoucherFromPool,
   markPoolVoucherSold,
-  releasePoolVoucher
+  releasePoolVoucher,
+  getVoucherByIdForUser,
+  markVoucherUsed
 } from '../utils/supabase.js';
+
+function resolveBundleSize(pkg) {
+  const normalized = `${pkg?.name || ''} ${pkg?.duration || ''}`.toLowerCase();
+
+  const durationMatch = normalized.match(/(\d+)\s*x\s*24/);
+  if (durationMatch) {
+    return Math.max(1, Number(durationMatch[1]) || 1);
+  }
+
+  if (normalized.includes('25 hari')) return 25;
+  if (normalized.includes('5 hari')) return 5;
+  if (normalized.includes('1 hari')) return 1;
+
+  if (Number(pkg?.price) === 25000) return 25;
+  if (Number(pkg?.price) === 5000) return 5;
+  if (Number(pkg?.price) === 1000) return 1;
+
+  return 1;
+}
+
+async function claimBundleFromPool(packageId, bundleSize, env) {
+  const claimed = [];
+
+  for (let i = 0; i < bundleSize; i += 1) {
+    const pooled = await claimVoucherFromPool(packageId, env);
+    if (!pooled) break;
+    claimed.push(pooled);
+  }
+
+  if (claimed.length === bundleSize) {
+    return claimed;
+  }
+
+  await Promise.all(
+    claimed.map((item) =>
+      releasePoolVoucher(item.id, 'rollback: stok tidak cukup untuk bundle purchase', env).catch(() => null)
+    )
+  );
+
+  return null;
+}
+
+function getAuthPayload(request, secret) {
+  const token = getBearerToken(request);
+  return verifyJWT(token, secret);
+}
 
 export async function handleGetPackages(_request, env) {
   try {
@@ -27,8 +75,7 @@ export async function handleGetPackages(_request, env) {
 
 export async function handleBuyVoucher(request, env) {
   try {
-    const token = getBearerToken(request);
-    const payload = await verifyJWT(token, env.JWT_SECRET);
+    const payload = await getAuthPayload(request, env.JWT_SECRET);
     if (!payload) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }
@@ -54,37 +101,57 @@ export async function handleBuyVoucher(request, env) {
       return jsonResponse({ error: 'Saldo tidak mencukupi untuk paket ini' }, 400);
     }
 
-    // Mode pre-generated: ambil dari pool voucher (hasil generate Mikhmon)
-    const pooled = await claimVoucherFromPool(package_id, env);
-    if (!pooled) {
+    const bundleSize = resolveBundleSize(pkg);
+    const claimedPoolRows = await claimBundleFromPool(package_id, bundleSize, env);
+
+    if (!claimedPoolRows) {
       return jsonResponse(
         {
-          error: 'Stok voucher habis',
-          detail: 'Admin perlu generate ulang voucher di Mikhmon lalu isi pool database'
+          error: 'Stok voucher tidak cukup',
+          detail:
+            bundleSize === 1
+              ? 'Stok voucher habis. Admin perlu isi pool dari Mikhmon.'
+              : `Paket ini butuh ${bundleSize} voucher harian, tetapi stok tidak cukup.`
         },
         409
       );
     }
 
-    let createdVoucher = null;
-    let saleCommitted = false;
+    const bundleId = `bundle-${crypto.randomUUID()}`;
+    const createdVouchers = [];
+    const soldPoolIds = new Set();
+    const oldBalance = wallet.balance;
+    const newBalance = oldBalance - pkg.price;
+
     try {
-      const newBalance = wallet.balance - pkg.price;
       await updateWalletBalance(payload.sub, newBalance, env);
 
-      const voucher = await createVoucher(
-        {
-          user_id: payload.sub,
-          package_id,
-          username: pooled.username,
-          password: pooled.password,
-          price: pkg.price,
-          status: 'assigned'
-        },
-        env
-      );
+      for (let i = 0; i < claimedPoolRows.length; i += 1) {
+        const pooled = claimedPoolRows[i];
+        const voucher = await createVoucher(
+          {
+            user_id: payload.sub,
+            package_id,
+            username: pooled.username,
+            password: pooled.password,
+            price: pkg.price,
+            status: 'assigned',
+            router_user_id: bundleId
+          },
+          env
+        );
 
-      createdVoucher = voucher[0];
+        const created = voucher[0];
+        createdVouchers.push({
+          ...created,
+          bundle_id: bundleId,
+          bundle_size: bundleSize,
+          bundle_index: i + 1
+        });
+
+        await markPoolVoucherSold(pooled.id, payload.sub, created.id, env);
+        soldPoolIds.add(pooled.id);
+      }
 
       await createTransaction(
         {
@@ -92,45 +159,51 @@ export async function handleBuyVoucher(request, env) {
           type: 'purchase',
           amount: -pkg.price,
           reference_type: 'voucher',
-          reference_id: createdVoucher.id,
-          status: 'success'
+          reference_id: createdVouchers[0].id,
+          status: 'success',
+          note: `bundle:${bundleId};qty:${bundleSize}`
         },
         env
       );
 
-      await markPoolVoucherSold(pooled.id, payload.sub, createdVoucher.id, env);
-      saleCommitted = true;
-
       return jsonResponse(
         {
-          message: 'Voucher berhasil dibeli',
-          voucher: {
-            id: createdVoucher.id,
-            username: pooled.username,
-            password: pooled.password,
+          message: 'Paket berhasil dibeli. Pilih tombol hari pada Voucher Saya.',
+          purchase: {
+            bundle_id: bundleId,
+            bundle_size: bundleSize
+          },
+          vouchers: createdVouchers.map((item) => ({
+            id: item.id,
+            username: item.username,
+            password: item.password,
             package_name: pkg.name,
             duration: pkg.duration,
             price: pkg.price,
-            created_at: createdVoucher.created_at
-          },
+            status: item.status,
+            created_at: item.created_at,
+            bundle_id: bundleId,
+            bundle_size: bundleSize,
+            bundle_index: item.bundle_index
+          })),
           remaining_balance: newBalance
         },
         201
       );
     } catch (innerError) {
-      // Kompensasi aman:
-      // - Jika voucher aplikasi belum terbuat, pool bisa dilepas kembali.
-      // - Jika voucher aplikasi sudah terbuat tetapi mark sold gagal,
-      //   jangan release agar tidak terjadi duplikasi voucher ke user lain.
-      if (!createdVoucher && !saleCommitted) {
-        await releasePoolVoucher(
-          pooled.id,
-          `buy-voucher rollback: ${innerError.message || 'unknown error'}`,
-          env
-        ).catch(() => {
-          // jangan menutup error asli jika release gagal
-        });
+      const unsoldPoolRows = claimedPoolRows.filter((row) => !soldPoolIds.has(row.id));
+      await Promise.all(
+        unsoldPoolRows.map((item) =>
+          releasePoolVoucher(item.id, `buy-voucher rollback: ${innerError.message || 'unknown'}`, env).catch(
+            () => null
+          )
+        )
+      );
+
+      if (!createdVouchers.length) {
+        await updateWalletBalance(payload.sub, oldBalance, env).catch(() => null);
       }
+
       throw innerError;
     }
   } catch (error) {
@@ -138,10 +211,52 @@ export async function handleBuyVoucher(request, env) {
   }
 }
 
+export async function handleUseVoucher(request, env) {
+  try {
+    const payload = await getAuthPayload(request, env.JWT_SECRET);
+    if (!payload) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = await request.json();
+    const { voucher_id } = body;
+
+    if (!voucher_id) {
+      return jsonResponse({ error: 'Voucher ID wajib diisi' }, 400);
+    }
+
+    const voucher = await getVoucherByIdForUser(voucher_id, payload.sub, env);
+    if (!voucher) {
+      return jsonResponse({ error: 'Voucher tidak ditemukan' }, 404);
+    }
+
+    if (voucher.status !== 'assigned') {
+      return jsonResponse({ error: 'Voucher ini sudah tidak bisa digunakan lagi' }, 400);
+    }
+
+    const updatedRows = await markVoucherUsed(voucher_id, env);
+    if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
+      return jsonResponse({ error: 'Voucher gagal ditandai sebagai terpakai' }, 409);
+    }
+
+    return jsonResponse({
+      message: 'Voucher siap dipakai',
+      voucher: {
+        id: voucher.id,
+        username: voucher.username,
+        password: voucher.password,
+        package_name: voucher.packages?.name || null,
+        duration: voucher.packages?.duration || null
+      }
+    });
+  } catch (error) {
+    return jsonResponse({ error: error.message }, 500);
+  }
+}
+
 export async function handleMyVouchers(request, env) {
   try {
-    const token = getBearerToken(request);
-    const payload = await verifyJWT(token, env.JWT_SECRET);
+    const payload = await getAuthPayload(request, env.JWT_SECRET);
     if (!payload) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }
@@ -162,3 +277,4 @@ function jsonResponse(data, status = 200) {
     headers: { 'Content-Type': 'application/json' }
   });
 }
+

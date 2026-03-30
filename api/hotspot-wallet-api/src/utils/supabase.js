@@ -310,6 +310,30 @@ export async function createVoucher(voucherData, env) {
   );
 }
 
+export async function getVoucherByIdForUser(voucherId, userId, env) {
+  const result = await supabaseRequest(
+    `vouchers?id=eq.${voucherId}&user_id=eq.${userId}&select=*,packages(name,duration)`,
+    { method: 'GET' },
+    env
+  );
+  return result[0] || null;
+}
+
+export async function markVoucherUsed(voucherId, env) {
+  return supabaseRequest(
+    `vouchers?id=eq.${voucherId}&status=eq.assigned`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: 'used',
+        activated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+    },
+    env
+  );
+}
+
 export async function updateVoucherStatusByUsername(username, status, env) {
   return supabaseRequest(
     `vouchers?username=eq.${encodeURIComponent(username)}`,

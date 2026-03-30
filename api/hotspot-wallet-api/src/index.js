@@ -10,7 +10,12 @@ import {
   handleTransactions,
   handleUploadProof
 } from './handlers/wallet.js';
-import { handleGetPackages, handleBuyVoucher, handleMyVouchers } from './handlers/voucher.js';
+import {
+  handleGetPackages,
+  handleBuyVoucher,
+  handleMyVouchers,
+  handleUseVoucher
+} from './handlers/voucher.js';
 import {
   handleAdminUsers,
   handleAdminTopups,
@@ -101,6 +106,10 @@ export default {
 
       if (path === '/api/buy-voucher' && request.method === 'POST') {
         return addCORS(await handleBuyVoucher(request, env), env);
+      }
+
+      if (path === '/api/use-voucher' && request.method === 'POST') {
+        return addCORS(await handleUseVoucher(request, env), env);
       }
 
       if (path === '/api/my-vouchers' && request.method === 'GET') {

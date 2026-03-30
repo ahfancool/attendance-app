@@ -1,7 +1,7 @@
 import { captureHotspotContext, getHotspotHintText } from '../config.js';
 import { requireAuth, logout } from '../auth.js';
-import { buyVoucher, connectVoucher, getMyVouchers, getPackages } from '../voucher.js';
-import { escapeHtml, formatCurrency, formatDate, setButtonBusy, showToast, statusLabel } from '../ui.js';
+import { buyVoucher, connectVoucher, getMyVouchers, getPackages, useVoucher } from '../voucher.js';
+import { escapeHtml, formatCurrency, formatDate, setButtonBusy, showToast } from '../ui.js';
 
 const userNameEl = document.getElementById('user-name');
 const roleBadgeEl = document.getElementById('role-badge');
@@ -34,92 +34,134 @@ function renderTopSection() {
   }
 }
 
-async function copyVoucherCredential(voucher) {
+function getBundleKey(voucher) {
+  const bundleId = String(voucher.router_user_id || '').trim();
+  if (bundleId) return bundleId;
+  return `legacy-${voucher.id}`;
+}
+
+function buildVoucherBundles(vouchers) {
+  const map = new Map();
+
+  vouchers.forEach((voucher) => {
+    const key = getBundleKey(voucher);
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        packageName: voucher.packages?.name || voucher.package_name || 'Voucher Harian',
+        duration: voucher.packages?.duration || voucher.duration || '24 jam',
+        createdAt: voucher.created_at,
+        vouchers: []
+      });
+    }
+    map.get(key).vouchers.push(voucher);
+  });
+
+  return Array.from(map.values())
+    .map((bundle) => {
+      const ordered = [...bundle.vouchers].sort((a, b) => {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
+      const usedCount = ordered.filter((item) => item.status !== 'assigned').length;
+      const total = ordered.length;
+      return {
+        ...bundle,
+        vouchers: ordered,
+        usedCount,
+        total,
+        remaining: total - usedCount
+      };
+    })
+    .filter((bundle) => bundle.remaining > 0)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+async function onUseVoucher(voucher, button) {
+  setButtonBusy(button, true, 'Mengaktifkan...');
+
   try {
-    await navigator.clipboard.writeText(`Username: ${voucher.username}\nPassword: ${voucher.password}`);
-    showToast('Kredensial voucher disalin', 'success');
-  } catch {
-    showToast('Clipboard tidak tersedia di browser ini', 'error');
+    const result = await useVoucher(voucher.id);
+    const target = state.vouchers.find((item) => item.id === voucher.id);
+    if (target) {
+      target.status = 'used';
+      target.activated_at = new Date().toISOString();
+    }
+
+    renderVouchers();
+    showToast('Voucher aktif. Menghubungkan ke hotspot...', 'success', 2600);
+
+    setTimeout(() => {
+      connectVoucher(result.voucher.username, result.voucher.password);
+    }, 650);
+  } catch (error) {
+    showToast(error.message, 'error', 4200);
+    setButtonBusy(button, false);
   }
 }
 
-function createVoucherCard(voucher) {
+function createBundleCard(bundle) {
   const card = document.createElement('article');
   card.className = 'voucher-card';
 
-  const statusClass = voucher.status === 'assigned' ? '' : 'pill-danger';
-
   card.innerHTML = `
     <div class="meta">
-      <strong>${escapeHtml(voucher.packages?.name || voucher.package_name || 'Voucher')}</strong>
-      <span class="pill ${statusClass}">${escapeHtml(statusLabel(voucher.status || 'assigned'))}</span>
+      <strong>${escapeHtml(bundle.packageName)}</strong>
+      <span class="pill">${escapeHtml(`${bundle.remaining}/${bundle.total} hari tersisa`)}</span>
     </div>
-    <div class="meta"><span>Username</span><strong>${escapeHtml(voucher.username)}</strong></div>
-    <div class="meta"><span>Password</span><strong>${escapeHtml(voucher.password || '-')}</strong></div>
-    <small>Dibuat: ${escapeHtml(formatDate(voucher.created_at))}</small>
+    <small>Dibeli: ${escapeHtml(formatDate(bundle.createdAt))}</small>
+    <small>Durasi voucher: ${escapeHtml(bundle.duration || '24 jam')}</small>
   `;
 
   const actions = document.createElement('div');
   actions.className = 'actions';
 
-  const connectButton = document.createElement('button');
-  connectButton.className = 'btn';
-  connectButton.textContent = 'Jalankan Voucher';
-  connectButton.addEventListener('click', () => {
-    connectVoucher(voucher.username, voucher.password);
+  bundle.vouchers.forEach((voucher, index) => {
+    const dayNumber = index + 1;
+    const isUsed = voucher.status !== 'assigned';
+    const button = document.createElement('button');
+    button.className = isUsed ? 'btn btn-soft' : 'btn';
+    button.disabled = isUsed;
+    button.textContent = isUsed ? `Hari ${dayNumber} (Terpakai)` : `Pakai Hari ${dayNumber}`;
+
+    if (!isUsed) {
+      button.addEventListener('click', () => onUseVoucher(voucher, button));
+    }
+
+    actions.appendChild(button);
   });
 
-  const copyButton = document.createElement('button');
-  copyButton.className = 'btn btn-soft';
-  copyButton.textContent = 'Salin Kredensial';
-  copyButton.addEventListener('click', () => copyVoucherCredential(voucher));
-
-  actions.append(connectButton, copyButton);
   card.appendChild(actions);
-
   return card;
 }
 
 function renderVouchers() {
   voucherGridEl.innerHTML = '';
+  const bundles = buildVoucherBundles(state.vouchers);
 
-  if (!state.vouchers.length) {
-    voucherGridEl.innerHTML = '<div class="empty">Belum ada voucher. Pilih paket dan tekan tombol 1 klik.</div>';
+  if (!bundles.length) {
+    voucherGridEl.innerHTML =
+      '<div class="empty">Belum ada jatah hari aktif. Beli paket dulu, lalu gunakan tombol hari di sini.</div>';
     return;
   }
 
-  state.vouchers.forEach((voucher) => {
-    voucherGridEl.appendChild(createVoucherCard(voucher));
+  bundles.forEach((bundle) => {
+    voucherGridEl.appendChild(createBundleCard(bundle));
   });
 }
 
-async function handleBuyAndConnect(pkg, button) {
-  setButtonBusy(button, true, 'Membeli voucher...');
+async function handleBuyPackage(pkg, button) {
+  setButtonBusy(button, true, 'Membeli paket...');
 
   try {
     const result = await buyVoucher(pkg.id);
-
-    const newVoucher = {
-      ...result.voucher,
-      status: 'assigned',
-      packages: {
-        name: result.voucher.package_name || pkg.name
-      }
-    };
-
-    state.vouchers = [newVoucher, ...state.vouchers];
     state.me.wallet.balance = result.remaining_balance;
+    state.vouchers = [...(result.vouchers || []), ...state.vouchers];
 
     renderTopSection();
     renderVouchers();
-
-    showToast('Voucher berhasil. Menghubungkan ke internet...', 'success', 2400);
-
-    setTimeout(() => {
-      connectVoucher(result.voucher.username, result.voucher.password);
-    }, 700);
+    showToast('Paket berhasil dibeli. Pilih tombol hari pada Voucher Saya.', 'success', 3500);
   } catch (error) {
-    showToast(error.message, 'error', 3800);
+    showToast(error.message, 'error', 4200);
   } finally {
     setButtonBusy(button, false);
   }
@@ -146,8 +188,8 @@ function createPackageCard(pkg) {
 
   const buyButton = document.createElement('button');
   buyButton.className = 'btn';
-  buyButton.textContent = 'Beli & Aktifkan (1 Klik)';
-  buyButton.addEventListener('click', () => handleBuyAndConnect(pkg, buyButton));
+  buyButton.textContent = 'Beli Paket';
+  buyButton.addEventListener('click', () => handleBuyPackage(pkg, buyButton));
 
   actions.appendChild(buyButton);
   card.appendChild(actions);
@@ -186,9 +228,11 @@ async function bootstrap() {
   await reloadData();
 
   refreshButtonEl.addEventListener('click', () => {
-    reloadData().then(() => showToast('Data dashboard diperbarui', 'success')).catch((error) => {
-      showToast(error.message, 'error');
-    });
+    reloadData()
+      .then(() => showToast('Data dashboard diperbarui', 'success'))
+      .catch((error) => {
+        showToast(error.message, 'error');
+      });
   });
 
   document.getElementById('logout-btn').addEventListener('click', logout);
@@ -197,3 +241,4 @@ async function bootstrap() {
 bootstrap().catch((error) => {
   showToast(error.message || 'Gagal memuat dashboard', 'error', 4200);
 });
+

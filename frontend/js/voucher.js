@@ -12,6 +12,13 @@ export async function buyVoucher(packageId) {
   });
 }
 
+export async function useVoucher(voucherId) {
+  return apiRequest('/api/use-voucher', {
+    method: 'POST',
+    body: JSON.stringify({ voucher_id: voucherId })
+  });
+}
+
 export async function getMyVouchers() {
   return apiRequest('/api/my-vouchers');
 }
@@ -43,6 +50,9 @@ export function connectVoucher(username, password) {
 
 export async function buyAndConnect(packageId) {
   const result = await buyVoucher(packageId);
-  connectVoucher(result.voucher.username, result.voucher.password);
+  const firstVoucher = result.vouchers?.[0];
+  if (firstVoucher) {
+    connectVoucher(firstVoucher.username, firstVoucher.password);
+  }
   return result;
 }
