@@ -23,8 +23,11 @@ Project ini dipulihkan ulang setelah file inti sempat hilang.
    Alternatif cepat testing: jalankan `docs/sql_quick_admin_and_seed.sql`.
 5. Untuk mode produksi penuh, ikuti `docs/PRODUKSI_FULL_CHECKLIST.md`.
    Sinkronisasi voucher pool ke MikroTik dapat dilakukan via `docs/sync_voucher_pool_to_mikrotik.ps1`.
-6. Jalankan API lokal:
+6. (Opsional) Aktifkan notifikasi Telegram topup pending dengan mengisi
+   `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` di secret Worker.
+   Panduan: `docs/TELEGRAM_NOTIF_SETUP.md`.
+7. Jalankan API lokal:
    - `cd api/hotspot-wallet-api`
    - `npm install`
    - `npm run dev`
-7. Publish frontend ke GitHub Pages.
+8. Publish frontend ke GitHub Pages.

@@ -47,6 +47,7 @@ Tujuan file: acuan cepat + detail teknis untuk AI agent lain agar bisa lanjut ke
   - upload bukti transfer gambar (jpg/png/webp, max 2MB)
   - `manual_transfer` wajib bukti
   - QRIS statis ditampilkan di halaman wallet (asset lokal `frontend/assets/qris_statis.jpeg`)
+  - setelah topup `pending` dibuat, Worker kirim notifikasi Telegram (jika secret Telegram terisi)
 
 ### Sisi admin
 
@@ -102,6 +103,10 @@ Update produksi penuh (2026-03-31):
 - Ditambahkan UI admin untuk sync pool ke router:
   - endpoint backend: `POST /api/admin/voucher-pool/sync-router`
   - panel admin: tombol `Sync ke MikroTik` + `Download Script .rsc` fallback jika tunnel live belum aktif.
+- Ditambahkan notifikasi Telegram topup pending:
+  - helper baru: `api/hotspot-wallet-api/src/utils/telegram.js`
+  - trigger: `POST /api/topup` (best-effort non-blocking)
+  - setup: `docs/TELEGRAM_NOTIF_SETUP.md`
 
 File terdampak:
 - `frontend/js/pages/dashboard.page.js`
@@ -181,6 +186,8 @@ Fungsi SQL penting:
 - `SUPABASE_URL`
 - `SUPABASE_KEY`
 - opsional:
+  - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+  - `TELEGRAM_ADMIN_PANEL_URL` (var non-secret)
   - `PROOF_BUCKET` (default `payment-proofs`)
   - `TUNNEL_BASE_URL`, `TUNNEL_SHARED_KEY`, `TUNNEL_API_KEY`, `MIKROTIK_SERVER` (hanya jika balik ke realtime tunnel mode)
 

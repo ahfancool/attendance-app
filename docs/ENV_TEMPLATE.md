@@ -5,10 +5,13 @@
 - JWT_SECRET=
 - SUPABASE_URL=
 - SUPABASE_KEY=
+- TELEGRAM_BOT_TOKEN= (opsional, untuk notifikasi topup pending)
+- TELEGRAM_CHAT_ID= (opsional, chat ID admin/grup tujuan notifikasi)
 
 ## Cloudflare Worker Vars (wrangler.jsonc)
 
 - CORS_ORIGIN=https://<username>.github.io
+- TELEGRAM_ADMIN_PANEL_URL=https://ahfancool.github.io/attendance-app/#/admin (opsional)
 
 ## Frontend (frontend/js/config.js)
 

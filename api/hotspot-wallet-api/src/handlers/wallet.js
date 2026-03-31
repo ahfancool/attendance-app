@@ -10,6 +10,7 @@ import {
   getUserTransactions,
   uploadProofImage
 } from '../utils/supabase.js';
+import { buildPendingTopupMessage, sendTelegramNotification } from '../utils/telegram.js';
 
 const MAX_PROOF_FILE_SIZE = 2 * 1024 * 1024;
 const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -95,6 +96,25 @@ export async function handleTopup(request, env) {
       },
       env
     );
+
+    if (topup[0]?.status === 'pending') {
+      const message = buildPendingTopupMessage({
+        userEmail: payload.email,
+        amount: topup[0].amount,
+        method: topup[0].method,
+        status: topup[0].status,
+        adminPanelUrl: env.TELEGRAM_ADMIN_PANEL_URL
+      });
+
+      try {
+        const notifyResult = await sendTelegramNotification(env, message);
+        if (notifyResult?.skipped) {
+          console.log('telegram notify skipped', notifyResult.reason);
+        }
+      } catch (notifyError) {
+        console.error('telegram notify failed', notifyError?.message || notifyError);
+      }
+    }
 
     return jsonResponse(
       {
