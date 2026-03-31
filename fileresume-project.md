@@ -83,6 +83,13 @@ Update lanjutan (2026-03-31):
 - user klik tombol `Buka Login Hotspot` untuk lanjut ke URL login hotspot yang sudah terisi.
 - file `hotspot/login.html` di MikroTik diubah ke redirect script yang mengirim `link-login-only`, `link-login`, dan context hotspot ke aplikasi.
 
+Update perbaikan susulan (2026-03-31):
+- tombol `Buka Login Hotspot` di `hotspot-login.page.js` diubah dari GET URL ke submit `POST` form (`username`, `password`, `dst`) langsung ke endpoint hotspot login.
+- `hotspot/login.html` di MikroTik diubah menjadi mode bridge:
+  - jika ada query `username/password`: auto submit login ke `$(link-login-only)`
+  - jika belum ada credential: redirect ke app wallet.
+- profile hotspot `hsprof1` diset `login-by=cookie,http-pap` (chap dimatikan untuk kompatibilitas flow POST credential).
+
 File terdampak:
 - `frontend/js/pages/dashboard.page.js`
 - `frontend/js/voucher.js`
