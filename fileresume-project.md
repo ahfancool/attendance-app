@@ -1,6 +1,6 @@
 # File Resume Project (Checkpoint Terkini)
 
-Update terakhir: 2026-03-30 (Asia/Jakarta)  
+Update terakhir: 2026-03-31 (Asia/Jakarta)  
 Tujuan file: acuan cepat + detail teknis untuk AI agent lain agar bisa lanjut kerja tanpa kehilangan konteks.
 
 ## 1) Snapshot Proyek
@@ -77,6 +77,11 @@ Perbaikan:
 - alur pre-open `about:blank` dihapus.
 - tetap delay 5 detik + eksekusi ads.
 - tambah fallback redirect hotspot di `connectVoucher`.
+
+Update lanjutan (2026-03-31):
+- alur `Pakai Hari` diarahkan ke halaman perantara `hotspot-login.html` (credential voucher dibawa via query URL-encoded).
+- user klik tombol `Buka Login Hotspot` untuk lanjut ke URL login hotspot yang sudah terisi.
+- file `hotspot/login.html` di MikroTik diubah ke redirect script yang mengirim `link-login-only`, `link-login`, dan context hotspot ke aplikasi.
 
 File terdampak:
 - `frontend/js/pages/dashboard.page.js`
@@ -218,4 +223,3 @@ Catatan: script `.rsc` tidak berada di repo `_repo_attendance_app`.
   - URL hotspot yang dibentuk frontend
   - callback `hw_login=1` lalu `POST /api/confirm-voucher-use`
   - state `vouchers.status` di DB (`assigned` -> `used`)
-

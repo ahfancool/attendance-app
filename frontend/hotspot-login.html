@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lanjut Login Hotspot - Hotspot Wallet</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">HW</span>
+          <div>
+            <div>Lanjut Login Hotspot</div>
+            <small class="muted">Credential voucher sudah disiapkan</small>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <article class="panel">
+          <h2>Langkah Terakhir</h2>
+          <p class="muted">Klik tombol di bawah untuk membuka halaman login hotspot dengan voucher terisi.</p>
+
+          <div class="form-grid">
+            <div>
+              <label for="voucher-username-preview">Username Voucher</label>
+              <input id="voucher-username-preview" type="text" readonly />
+            </div>
+            <div>
+              <label for="voucher-password-preview">Password Voucher</label>
+              <input id="voucher-password-preview" type="text" readonly />
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="continue-hotspot-login" class="btn" type="button">Buka Login Hotspot</button>
+            <a class="btn btn-soft" href="./dashboard.html">Kembali ke Dashboard</a>
+          </div>
+
+          <small id="gateway-hint" class="muted"></small>
+          <small id="status-hint" class="muted"></small>
+        </article>
+      </main>
+    </div>
+
+    <script type="module" src="./js/pages/hotspot-login.page.js"></script>
+  </body>
+</html>

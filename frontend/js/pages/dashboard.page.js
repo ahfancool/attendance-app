@@ -4,7 +4,6 @@ import { getRandomAdsLink, openAdsLink } from '../ads.js';
 import {
   buyVoucher,
   confirmVoucherUse,
-  connectVoucher,
   getMyVouchers,
   getPackages,
   useVoucher
@@ -123,6 +122,18 @@ function buildActivationCallbackUrl(voucherId, activationToken) {
   return callback.toString();
 }
 
+function buildHotspotAssistUrl(username, password, callbackUrl) {
+  const assist = new URL('./hotspot-login.html', window.location.href);
+  assist.search = '';
+  assist.hash = '';
+  assist.searchParams.set('u', username);
+  assist.searchParams.set('p', password);
+  if (callbackUrl) {
+    assist.searchParams.set('cb', callbackUrl);
+  }
+  return assist.toString();
+}
+
 async function processActivationCallback() {
   const ctx = readActivationContext();
   if (!ctx) return;
@@ -157,21 +168,23 @@ async function onUseVoucher(voucher, button) {
 
     setTimeout(() => {
       try {
-        connectVoucher(result.voucher.username, result.voucher.password, { callbackUrl });
+        const adsUrl = getRandomAdsLink();
+        openAdsLink(adsUrl);
+      } catch {
+        // no-op
+      }
+
+      try {
+        const assistUrl = buildHotspotAssistUrl(
+          result.voucher.username,
+          result.voucher.password,
+          callbackUrl
+        );
+        window.location.assign(assistUrl);
       } catch (connectError) {
         showToast(`Gagal mengarahkan login hotspot: ${connectError.message}`, 'error', 5200);
         setButtonBusy(button, false);
-        return;
       }
-
-      setTimeout(() => {
-        try {
-          const adsUrl = getRandomAdsLink();
-          openAdsLink(adsUrl);
-        } catch {
-          // no-op
-        }
-      }, 1000);
     }, 5000);
   } catch (error) {
     showToast(error.message, 'error', 4200);
