@@ -467,3 +467,41 @@ export async function getAllTopups(env) {
     env
   );
 }
+
+// MAINTENANCE PURGE
+export async function purgeTopupsNonPendingOlderThan(cutoffIso, env) {
+  const statusFilter = encodeURIComponent('(status.eq.confirmed,status.eq.rejected)');
+  return supabaseRequest(
+    `topups?or=${statusFilter}&updated_at=lt.${encodeURIComponent(cutoffIso)}&select=id`,
+    { method: 'DELETE' },
+    env
+  );
+}
+
+export async function purgeTransactionsFinalOlderThan(cutoffIso, env) {
+  const statusFilter = encodeURIComponent(
+    '(status.eq.success,status.eq.failed,status.eq.cancelled)'
+  );
+  return supabaseRequest(
+    `transactions?or=${statusFilter}&created_at=lt.${encodeURIComponent(cutoffIso)}&select=id`,
+    { method: 'DELETE' },
+    env
+  );
+}
+
+export async function purgeVouchersUsedOrRevokedOlderThan(cutoffIso, env) {
+  const statusFilter = encodeURIComponent('(status.eq.used,status.eq.revoked)');
+  return supabaseRequest(
+    `vouchers?or=${statusFilter}&updated_at=lt.${encodeURIComponent(cutoffIso)}&select=id`,
+    { method: 'DELETE' },
+    env
+  );
+}
+
+export async function purgeVoucherPoolSoldOlderThan(cutoffIso, env) {
+  return supabaseRequest(
+    `voucher_pool?status=eq.sold&sold_at=lt.${encodeURIComponent(cutoffIso)}&select=id`,
+    { method: 'DELETE' },
+    env
+  );
+}

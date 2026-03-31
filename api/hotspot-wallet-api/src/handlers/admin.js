@@ -16,12 +16,23 @@ import {
   deleteProofImageByUrl,
   clearTopupProof,
   importVoucherPoolRows,
-  getVoucherPoolRowsForSync
+  getVoucherPoolRowsForSync,
+  purgeTopupsNonPendingOlderThan,
+  purgeTransactionsFinalOlderThan,
+  purgeVouchersUsedOrRevokedOlderThan,
+  purgeVoucherPoolSoldOlderThan
 } from '../utils/supabase.js';
 import { createMikrotikVoucher } from '../utils/mikrotik.js';
 
 const MAX_IMPORT_ROWS = 3000;
 const DEFAULT_SYNC_LIMIT = 5000;
+const MAX_PURGE_DAYS = 3650;
+const DEFAULT_PURGE_POLICY = Object.freeze({
+  topups_days: 30,
+  transactions_days: 30,
+  vouchers_days: 10,
+  voucher_pool_sold_days: 10
+});
 
 function normalizeCsvCell(value) {
   return String(value || '')
@@ -182,6 +193,17 @@ function shouldRunLiveRouterSync(env) {
   const base = String(env.TUNNEL_BASE_URL || '').trim();
   const shared = String(env.TUNNEL_SHARED_KEY || '').trim();
   return mode === 'live' && Boolean(base) && Boolean(shared);
+}
+
+function normalizePurgeDays(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(Math.floor(parsed), MAX_PURGE_DAYS);
+}
+
+function toCutoffIso(days) {
+  const daysMs = Math.floor(days) * 24 * 60 * 60 * 1000;
+  return new Date(Date.now() - daysMs).toISOString();
 }
 
 async function requireAdmin(request, env) {
@@ -502,6 +524,62 @@ export async function handleAdminSyncVoucherPoolToRouter(request, env) {
       profile_name: profileName,
       script_filename: scriptFilename,
       script_content: scriptContent
+    });
+  } catch (error) {
+    return jsonResponse({ error: error.message }, 500);
+  }
+}
+
+export async function handleAdminMaintenancePurge(request, env) {
+  const adminCheck = await requireAdmin(request, env);
+  if (adminCheck.error) {
+    return jsonResponse({ error: adminCheck.error }, adminCheck.status);
+  }
+
+  try {
+    const body = await request.json().catch(() => ({}));
+    const policy = {
+      topups_days: normalizePurgeDays(body.topups_days, DEFAULT_PURGE_POLICY.topups_days),
+      transactions_days: normalizePurgeDays(
+        body.transactions_days,
+        DEFAULT_PURGE_POLICY.transactions_days
+      ),
+      vouchers_days: normalizePurgeDays(body.vouchers_days, DEFAULT_PURGE_POLICY.vouchers_days),
+      voucher_pool_sold_days: normalizePurgeDays(
+        body.voucher_pool_sold_days,
+        DEFAULT_PURGE_POLICY.voucher_pool_sold_days
+      )
+    };
+
+    const cutoffTopups = toCutoffIso(policy.topups_days);
+    const cutoffTransactions = toCutoffIso(policy.transactions_days);
+    const cutoffVouchers = toCutoffIso(policy.vouchers_days);
+    const cutoffPoolSold = toCutoffIso(policy.voucher_pool_sold_days);
+
+    const [topupsDeleted, transactionsDeleted, vouchersDeleted, poolDeleted] = await Promise.all([
+      purgeTopupsNonPendingOlderThan(cutoffTopups, env),
+      purgeTransactionsFinalOlderThan(cutoffTransactions, env),
+      purgeVouchersUsedOrRevokedOlderThan(cutoffVouchers, env),
+      purgeVoucherPoolSoldOlderThan(cutoffPoolSold, env)
+    ]);
+
+    const deleted = {
+      topups: Array.isArray(topupsDeleted) ? topupsDeleted.length : 0,
+      transactions: Array.isArray(transactionsDeleted) ? transactionsDeleted.length : 0,
+      vouchers: Array.isArray(vouchersDeleted) ? vouchersDeleted.length : 0,
+      voucher_pool_sold: Array.isArray(poolDeleted) ? poolDeleted.length : 0
+    };
+
+    return jsonResponse({
+      message: `Purge selesai. topups=${deleted.topups}, transactions=${deleted.transactions}, vouchers=${deleted.vouchers}, pool_sold=${deleted.voucher_pool_sold}`,
+      policy,
+      cutoff: {
+        topups_lt: cutoffTopups,
+        transactions_lt: cutoffTransactions,
+        vouchers_lt: cutoffVouchers,
+        voucher_pool_sold_lt: cutoffPoolSold
+      },
+      deleted
     });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);

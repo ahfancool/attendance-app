@@ -148,7 +148,29 @@ Efek:
 5. Jalankan **Sync Voucher Pool ke MikroTik**.
 6. Gunakan **Revoke Voucher** jika ada voucher yang harus dicabut.
 
-## 8. Troubleshooting Cepat
+## 8. Pembersihan Data (Purge)
+
+Menu ini dipakai untuk menjaga database Supabase Free Plan tetap ringan.
+
+Policy bawaan (sekali klik):
+
+- `topups` status final (`confirmed/rejected`) yang lebih lama dari **30 hari** akan dihapus.
+- `transactions` status final (`success/failed/cancelled`) yang lebih lama dari **30 hari** akan dihapus.
+- `vouchers` status `used/revoked` yang lebih lama dari **10 hari** akan dihapus.
+- `voucher_pool` status `sold` yang lebih lama dari **10 hari** akan dihapus.
+
+Cara pakai:
+
+1. Buka panel **Pembersihan Data (Purge)**.
+2. Klik **Jalankan Purge Sekarang**.
+3. Cek ringkasan hasil hapus pada panel.
+
+Saran operasional:
+
+- Jalankan minimal 1x per minggu.
+- Jalankan juga setelah event besar (banyak transaksi/topup).
+
+## 9. Troubleshooting Cepat
 
 - **Topup tidak bisa confirm karena bukti tidak ada**
   - Metode `manual_transfer` memang wajib bukti upload.

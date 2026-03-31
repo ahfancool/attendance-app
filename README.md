@@ -26,8 +26,10 @@ Project ini dipulihkan ulang setelah file inti sempat hilang.
 6. (Opsional) Aktifkan notifikasi Telegram topup pending dengan mengisi
    `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` di secret Worker.
    Panduan: `docs/TELEGRAM_NOTIF_SETUP.md`.
-7. Jalankan API lokal:
+7. Gunakan panel admin `Pembersihan Data (Purge)` secara berkala agar database tetap ringan
+   (policy default: topup+transaksi 30 hari, voucher/pool sold 10 hari).
+8. Jalankan API lokal:
    - `cd api/hotspot-wallet-api`
    - `npm install`
    - `npm run dev`
-8. Publish frontend ke GitHub Pages.
+9. Publish frontend ke GitHub Pages.

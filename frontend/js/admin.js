@@ -39,3 +39,10 @@ export async function syncVoucherPoolToRouter(payload = {}) {
     body: JSON.stringify(payload)
   });
 }
+
+export async function purgeAdminData(payload = {}) {
+  return apiRequest('/api/admin/maintenance/purge', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}

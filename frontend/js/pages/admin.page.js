@@ -5,6 +5,7 @@ import {
   getAdminUsers,
   getPackagesForAdmin,
   importVoucherPoolCsv,
+  purgeAdminData,
   revokeVoucher,
   syncVoucherPoolToRouter
 } from '../admin.js';
@@ -26,6 +27,8 @@ const syncFormEl = document.getElementById('sync-router-form');
 const syncProfileEl = document.getElementById('sync-profile');
 const syncSummaryEl = document.getElementById('sync-summary');
 const downloadSyncRscEl = document.getElementById('download-sync-rsc');
+const purgeFormEl = document.getElementById('purge-form');
+const purgeSummaryEl = document.getElementById('purge-summary');
 
 const state = {
   topups: [],
@@ -169,6 +172,17 @@ function renderSyncSummary(result) {
   `;
 }
 
+function renderPurgeSummary(result) {
+  purgeSummaryEl.innerHTML = `
+    <div class="meta"><span>Topup Terhapus</span><strong>${result.deleted?.topups ?? 0}</strong></div>
+    <div class="meta"><span>Transaksi Terhapus</span><strong>${result.deleted?.transactions ?? 0}</strong></div>
+    <div class="meta"><span>Voucher Terhapus</span><strong>${result.deleted?.vouchers ?? 0}</strong></div>
+    <div class="meta"><span>Pool Sold Terhapus</span><strong>${result.deleted?.voucher_pool_sold ?? 0}</strong></div>
+    <div class="meta"><span>Cutoff Topup</span><strong>${escapeHtml(result.cutoff?.topups_lt || '-')}</strong></div>
+    <div class="meta"><span>Cutoff Voucher</span><strong>${escapeHtml(result.cutoff?.vouchers_lt || '-')}</strong></div>
+  `;
+}
+
 async function onImportVoucherSubmit(event) {
   event.preventDefault();
   const submitButton = importFormEl.querySelector('button[type="submit"]');
@@ -257,6 +271,30 @@ async function onSyncRouterSubmit(event) {
   }
 }
 
+async function onPurgeSubmit(event) {
+  event.preventDefault();
+  const submitButton = purgeFormEl.querySelector('button[type="submit"]');
+  setButtonBusy(submitButton, true, 'Menjalankan purge...');
+  purgeSummaryEl.textContent = '';
+
+  try {
+    const result = await purgeAdminData({
+      topups_days: 30,
+      transactions_days: 30,
+      vouchers_days: 10,
+      voucher_pool_sold_days: 10
+    });
+
+    renderPurgeSummary(result);
+    showToast(result.message || 'Purge data selesai', 'success', 4500);
+    await refreshData();
+  } catch (error) {
+    showToast(error.message, 'error', 4600);
+  } finally {
+    setButtonBusy(submitButton, false);
+  }
+}
+
 async function bootstrap() {
   const me = await requireAuth({ adminOnly: true });
   userNameEl.textContent = me.user?.name || 'Admin';
@@ -271,6 +309,7 @@ async function bootstrap() {
   revokeFormEl.addEventListener('submit', onRevokeSubmit);
   importFormEl.addEventListener('submit', onImportVoucherSubmit);
   syncFormEl.addEventListener('submit', onSyncRouterSubmit);
+  purgeFormEl.addEventListener('submit', onPurgeSubmit);
   downloadSyncRscEl.addEventListener('click', () => {
     if (!state.latestSyncScript) {
       showToast('Belum ada script sync yang tersedia', 'error');

@@ -65,6 +65,10 @@ Tujuan file: acuan cepat + detail teknis untuk AI agent lain agar bisa lanjut ke
   - auto deteksi delimiter (`,` `;` `tab`)
   - dukung file dengan/ tanpa header
   - duplicate username dalam file/DB di-skip
+- Maintenance purge data (admin one-click):
+  - topup + transaksi final lebih dari 30 hari dihapus
+  - voucher `used/revoked` lebih dari 10 hari dihapus
+  - `voucher_pool` status `sold` lebih dari 10 hari dihapus
 
 ## 4) Perbaikan Terakhir (Penting)
 
@@ -107,6 +111,9 @@ Update produksi penuh (2026-03-31):
   - helper baru: `api/hotspot-wallet-api/src/utils/telegram.js`
   - trigger: `POST /api/topup` (best-effort non-blocking)
   - setup: `docs/TELEGRAM_NOTIF_SETUP.md`
+- Ditambahkan endpoint maintenance purge:
+  - `POST /api/admin/maintenance/purge`
+  - UI: panel `Pembersihan Data (Purge)` di `admin.html`.
 
 File terdampak:
 - `frontend/js/pages/dashboard.page.js`
@@ -140,6 +147,7 @@ File terdampak:
 - `POST /api/admin/topup/confirm`
 - `POST /api/admin/revoke-voucher`
 - `POST /api/admin/voucher-pool/import`
+- `POST /api/admin/maintenance/purge`
 
 Router endpoint optional via tunnel (realtime create/revoke) saat ini tidak dipakai oleh flow produksi.
 

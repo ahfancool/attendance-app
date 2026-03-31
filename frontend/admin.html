@@ -126,6 +126,27 @@
             <button class="btn btn-danger" type="submit">Revoke Voucher</button>
           </form>
         </article>
+
+        <article class="panel">
+          <h2>Pembersihan Data (Purge)</h2>
+          <form id="purge-form" class="form-grid">
+            <div>
+              <label for="purge-policy-note">Policy Rekomendasi Aktif</label>
+              <input
+                id="purge-policy-note"
+                type="text"
+                value="Topup+Transaksi: 30 hari | Voucher used/revoked: 10 hari | Pool sold: 10 hari"
+                readonly
+              />
+              <small class="muted"
+                >Jalankan saat maintenance (mis. mingguan) agar database tetap ringan di Supabase Free
+                Plan.</small
+              >
+            </div>
+            <button id="purge-submit" class="btn btn-soft" type="submit">Jalankan Purge Sekarang</button>
+          </form>
+          <div id="purge-summary" class="muted"></div>
+        </article>
       </main>
     </div>
 
