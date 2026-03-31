@@ -67,8 +67,8 @@ Tujuan file: acuan cepat + detail teknis untuk AI agent lain agar bisa lanjut ke
 
 ## 4) Perbaikan Terakhir (Penting)
 
-Commit terbaru: `540e6d6`  
-Judul: `Fix voucher activation flow without blank popup blocking hotspot login`
+Commit terbaru: `99d2291`  
+Judul: `Avoid HTTPS to HTTP form warning in hotspot assist flow`
 
 Masalah sebelumnya:
 - klik `Pakai Hari` memunculkan tab blank (`about:blank`), lalu login hotspot sering tidak lanjut (terutama browser lama/VM).
@@ -90,9 +90,21 @@ Update perbaikan susulan (2026-03-31):
 - tombol `Buka Login Hotspot` di `hotspot-login.page.js` menggunakan redirect GET ke URL login berisi credential, lalu submit login diproses di sisi MikroTik (context HTTP lokal), agar tidak muncul warning submit form HTTPS -> HTTP.
 - profile hotspot `hsprof1` diset `login-by=cookie,http-pap` (chap dimatikan untuk kompatibilitas flow POST credential).
 
+Update produksi penuh (2026-03-31):
+- Data dummy Supabase dibersihkan:
+  - `voucher_pool` source `seed_sql` dihapus
+  - akun uji `coba@gmail.com` dihapus
+  - tabel `vouchers` dan `transactions` kembali bersih dari data test.
+- User hotspot dummy di MikroTik dibersihkan, menyisakan baseline bawaan (`default-trial`, `admin`).
+- Ditambahkan script one-click sinkronisasi pool produksi:
+  - `docs/sync_voucher_pool_to_mikrotik.ps1` (otomatis abaikan source `seed_sql`)
+  - panduan operasional: `docs/PRODUKSI_FULL_CHECKLIST.md`.
+
 File terdampak:
 - `frontend/js/pages/dashboard.page.js`
 - `frontend/js/voucher.js`
+- `frontend/hotspot-login.html`
+- `frontend/js/pages/hotspot-login.page.js`
 
 ## 5) Endpoint API (Aktif di Kode Saat Ini)
 
@@ -184,6 +196,9 @@ Catatan: script `.rsc` tidak berada di repo `_repo_attendance_app`.
 
 ## 9) Riwayat Commit Penting (ringkas)
 
+- `99d2291` hindari warning submit HTTPS->HTTP pada hotspot assist flow
+- `c5a07f5` fix login hotspot assist via submit credential yang stabil
+- `1053154` tambah halaman perantara login hotspot manual
 - `540e6d6` fix alur pakai voucher agar tidak macet karena blank popup
 - `be72a19` ads delay 5 detik saat pakai voucher
 - `f574f97` callback confirm voucher-use (mark used setelah callback)
@@ -200,6 +215,7 @@ Catatan: script `.rsc` tidak berada di repo `_repo_attendance_app`.
 - Jika captive portal redirect tidak membawa `link-login-only`, sistem mengandalkan fallback gateway IP.
 - Revoke di aplikasi tidak auto disable user di router (by design untuk mode pool).
 - Ads URL bisa diblokir popup blocker; login hotspot tetap harus jadi prioritas.
+- Source voucher dummy `seed_sql` tidak boleh dipakai di produksi (script sync produksi otomatis mengabaikan).
 
 ## 11) Runbook Cepat untuk Agent Lain
 
@@ -220,6 +236,10 @@ Catatan: script `.rsc` tidak berada di repo `_repo_attendance_app`.
 - fresh install: `docs/sql_v2_schema.sql`
 - migrasi ke pool mode: `docs/sql_v2_pool_migration.sql`
 - seed/admin cepat: `docs/sql_quick_admin_and_seed.sql`
+
+### Sinkronisasi produksi voucher -> MikroTik
+1. Jalankan `docs/sync_voucher_pool_to_mikrotik.ps1`
+2. Ikuti panduan `docs/PRODUKSI_FULL_CHECKLIST.md`
 
 ## 12) Guardrail Operasional (Wajib Diingat)
 

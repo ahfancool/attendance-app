@@ -21,8 +21,10 @@ Project ini dipulihkan ulang setelah file inti sempat hilang.
 3. Jika DB sudah terpasang versi lama, jalankan migrasi `docs/sql_v2_pool_migration.sql`.
 4. Isi `voucher_pool` sesuai panduan `docs/VOUCHER_POOL_OPERASIONAL.md`.
    Alternatif cepat testing: jalankan `docs/sql_quick_admin_and_seed.sql`.
-5. Jalankan API lokal:
+5. Untuk mode produksi penuh, ikuti `docs/PRODUKSI_FULL_CHECKLIST.md`.
+   Sinkronisasi voucher pool ke MikroTik dapat dilakukan via `docs/sync_voucher_pool_to_mikrotik.ps1`.
+6. Jalankan API lokal:
    - `cd api/hotspot-wallet-api`
    - `npm install`
    - `npm run dev`
-6. Publish frontend ke GitHub Pages.
+7. Publish frontend ke GitHub Pages.
