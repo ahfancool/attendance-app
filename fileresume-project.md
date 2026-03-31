@@ -99,6 +99,9 @@ Update produksi penuh (2026-03-31):
 - Ditambahkan script one-click sinkronisasi pool produksi:
   - `docs/sync_voucher_pool_to_mikrotik.ps1` (otomatis abaikan source `seed_sql`)
   - panduan operasional: `docs/PRODUKSI_FULL_CHECKLIST.md`.
+- Ditambahkan UI admin untuk sync pool ke router:
+  - endpoint backend: `POST /api/admin/voucher-pool/sync-router`
+  - panel admin: tombol `Sync ke MikroTik` + `Download Script .rsc` fallback jika tunnel live belum aktif.
 
 File terdampak:
 - `frontend/js/pages/dashboard.page.js`

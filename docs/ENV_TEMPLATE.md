@@ -21,3 +21,5 @@
 - TUNNEL_SHARED_KEY=
 - TUNNEL_API_KEY=
 - MIKROTIK_SERVER=hotspot1
+- MIKROTIK_MODE=mock (gunakan `live` jika tunnel sinkronisasi router sudah aktif)
+- MIKROTIK_SYNC_PROFILE=harian (opsional, default profile untuk sync pool -> router)

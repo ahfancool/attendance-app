@@ -48,6 +48,12 @@ Jalankan script:
 
 `docs/sync_voucher_pool_to_mikrotik.ps1`
 
+Alternatif tanpa CLI:
+
+- Buka panel admin web -> section **Sync Voucher Pool ke MikroTik**
+- Klik tombol **Sync ke MikroTik**
+- Jika tunnel live belum aktif, tombol **Download Script .rsc** akan muncul untuk import via Winbox.
+
 Contoh:
 
 ```powershell

@@ -32,3 +32,10 @@ export async function importVoucherPoolCsv(payload) {
     body: JSON.stringify(payload)
   });
 }
+
+export async function syncVoucherPoolToRouter(payload = {}) {
+  return apiRequest('/api/admin/voucher-pool/sync-router', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}

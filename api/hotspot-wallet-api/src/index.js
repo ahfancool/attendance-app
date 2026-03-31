@@ -22,7 +22,8 @@ import {
   handleAdminTopups,
   handleConfirmTopup,
   handleRevokeVoucher,
-  handleAdminImportVoucherPool
+  handleAdminImportVoucherPool,
+  handleAdminSyncVoucherPoolToRouter
 } from './handlers/admin.js';
 
 const defaultCorsOrigin = '*';
@@ -139,6 +140,10 @@ export default {
 
       if (path === '/api/admin/voucher-pool/import' && request.method === 'POST') {
         return addCORS(await handleAdminImportVoucherPool(request, env), env);
+      }
+
+      if (path === '/api/admin/voucher-pool/sync-router' && request.method === 'POST') {
+        return addCORS(await handleAdminSyncVoucherPoolToRouter(request, env), env);
       }
 
       return addCORS(

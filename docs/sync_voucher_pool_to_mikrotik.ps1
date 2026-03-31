@@ -40,8 +40,18 @@ function Ensure-OutputDir([string]$path) {
 }
 
 function Build-RouterComment([string]$source, [string]$status) {
-  $safeSource = ($source ?? '').Trim()
-  $safeStatus = ($status ?? '').Trim()
+  $safeSource = ''
+  if ($null -ne $source) {
+    $safeSource = [string]$source
+  }
+  $safeSource = $safeSource.Trim()
+
+  $safeStatus = ''
+  if ($null -ne $status) {
+    $safeStatus = [string]$status
+  }
+  $safeStatus = $safeStatus.Trim()
+
   return "wallet-sync $safeSource $safeStatus"
 }
 

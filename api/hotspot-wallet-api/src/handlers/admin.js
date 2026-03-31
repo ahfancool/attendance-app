@@ -15,10 +15,13 @@ import {
   updateVoucherStatusByUsername,
   deleteProofImageByUrl,
   clearTopupProof,
-  importVoucherPoolRows
+  importVoucherPoolRows,
+  getVoucherPoolRowsForSync
 } from '../utils/supabase.js';
+import { createMikrotikVoucher } from '../utils/mikrotik.js';
 
 const MAX_IMPORT_ROWS = 3000;
+const DEFAULT_SYNC_LIMIT = 5000;
 
 function normalizeCsvCell(value) {
   return String(value || '')
@@ -137,6 +140,48 @@ function parseVoucherCsv(csvText) {
     has_header: hasHeader,
     delimiter: delimiter === '\t' ? 'tab' : delimiter
   };
+}
+
+function buildSyncRouterScript(rows, profileName) {
+  const lines = [];
+  lines.push('# Auto-generated from voucher_pool (non-seed_sql)');
+  lines.push(':local added 0');
+  lines.push(':local updated 0');
+
+  rows.forEach((row) => {
+    const username = String(row.username || '').replace(/"/g, '').trim();
+    const password = String(row.password || '').replace(/"/g, '').trim();
+    const source = String(row.source || '').replace(/"/g, '').trim();
+    const status = String(row.status || '').replace(/"/g, '').trim();
+
+    if (!username || !password) return;
+
+    const comment = `wallet-sync ${source} ${status}`.replace(/"/g, '');
+    const profile = String(profileName || 'harian').replace(/"/g, '');
+
+    lines.push(`:local uid [/ip hotspot user find where name="${username}"]`);
+    lines.push(':if ([:len $uid] = 0) do={');
+    lines.push(
+      `  /ip hotspot user add name="${username}" password="${password}" profile="${profile}" comment="${comment}"`
+    );
+    lines.push('  :set added ($added + 1)');
+    lines.push('} else={');
+    lines.push(
+      `  /ip hotspot user set $uid password="${password}" profile="${profile}" comment="${comment}"`
+    );
+    lines.push('  :set updated ($updated + 1)');
+    lines.push('}');
+  });
+
+  lines.push(':put ("sync done | added=" . $added . " updated=" . $updated)');
+  return `${lines.join('\n')}\n`;
+}
+
+function shouldRunLiveRouterSync(env) {
+  const mode = String(env.MIKROTIK_MODE || '').trim().toLowerCase();
+  const base = String(env.TUNNEL_BASE_URL || '').trim();
+  const shared = String(env.TUNNEL_SHARED_KEY || '').trim();
+  return mode === 'live' && Boolean(base) && Boolean(shared);
 }
 
 async function requireAdmin(request, env) {
@@ -347,6 +392,119 @@ export async function handleAdminImportVoucherPool(request, env) {
       message.includes('Paket');
 
     return jsonResponse({ error: message }, isValidationError ? 400 : 500);
+  }
+}
+
+export async function handleAdminSyncVoucherPoolToRouter(request, env) {
+  const adminCheck = await requireAdmin(request, env);
+  if (adminCheck.error) {
+    return jsonResponse({ error: adminCheck.error }, adminCheck.status);
+  }
+
+  try {
+    const body = await request.json().catch(() => ({}));
+    const profileName = String(body.profile_name || 'harian').trim() || 'harian';
+    const limit = Number(body.limit || DEFAULT_SYNC_LIMIT);
+
+    const rows = await getVoucherPoolRowsForSync(env, {
+      exclude_source: 'seed_sql',
+      statuses: ['available', 'reserved', 'sold'],
+      limit: Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_SYNC_LIMIT
+    });
+
+    const normalizedRows = Array.isArray(rows) ? rows : [];
+    const scriptContent = buildSyncRouterScript(normalizedRows, profileName);
+    const scriptFilename = `sync_pool_to_mikrotik_${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}.rsc`;
+
+    if (!normalizedRows.length) {
+      return jsonResponse({
+        mode: 'script_only',
+        message: 'voucher_pool produksi kosong. Import CSV voucher dulu dari panel admin.',
+        rows_total: 0,
+        profile_name: profileName,
+        script_filename: scriptFilename,
+        script_content: scriptContent
+      });
+    }
+
+    if (!shouldRunLiveRouterSync(env)) {
+      return jsonResponse({
+        mode: 'script_only',
+        message:
+          'Tunnel sync live belum aktif (MIKROTIK_MODE/TUNNEL_BASE_URL/TUNNEL_SHARED_KEY). Download script .rsc lalu import via Winbox/File + System Script.',
+        rows_total: normalizedRows.length,
+        profile_name: profileName,
+        script_filename: scriptFilename,
+        script_content: scriptContent
+      });
+    }
+
+    let synced = 0;
+    let alreadyExists = 0;
+    const failed = [];
+
+    for (const row of normalizedRows) {
+      const username = String(row.username || '').trim();
+      const password = String(row.password || '').trim();
+      const source = String(row.source || '').trim();
+      const status = String(row.status || '').trim();
+
+      if (!username || !password) continue;
+
+      const result = await createMikrotikVoucher(
+        username,
+        password,
+        {
+          profile_name: profileName,
+          comment: `wallet-sync ${source} ${status}`,
+          limit_uptime: null
+        },
+        env
+      );
+
+      if (result?.success) {
+        const msg = String(result.message || '').toLowerCase();
+        if (msg.includes('mock mode')) {
+          return jsonResponse({
+            mode: 'script_only',
+            message:
+              'MIKROTIK_MODE masih mock. Live sync belum jalan. Download script .rsc untuk import manual.',
+            rows_total: normalizedRows.length,
+            profile_name: profileName,
+            script_filename: scriptFilename,
+            script_content: scriptContent
+          });
+        }
+        synced += 1;
+        continue;
+      }
+
+      const err = String(result?.error || '').toLowerCase();
+      if (err.includes('already') || err.includes('exists')) {
+        alreadyExists += 1;
+        continue;
+      }
+
+      failed.push({
+        username,
+        error: result?.error || 'Unknown error'
+      });
+    }
+
+    return jsonResponse({
+      mode: 'tunnel_sync',
+      message: `Sync selesai. synced=${synced}, existing=${alreadyExists}, failed=${failed.length}`,
+      rows_total: normalizedRows.length,
+      synced_rows: synced,
+      existing_rows: alreadyExists,
+      failed_rows: failed.length,
+      failed_details: failed.slice(0, 20),
+      profile_name: profileName,
+      script_filename: scriptFilename,
+      script_content: scriptContent
+    });
+  } catch (error) {
+    return jsonResponse({ error: error.message }, 500);
   }
 }
 

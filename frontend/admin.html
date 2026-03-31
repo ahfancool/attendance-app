@@ -97,6 +97,26 @@
         </article>
 
         <article class="panel">
+          <h2>Sync Voucher Pool ke MikroTik</h2>
+          <form id="sync-router-form" class="form-grid">
+            <div>
+              <label for="sync-profile">Profile Hotspot Router</label>
+              <input id="sync-profile" type="text" value="harian" required />
+              <small class="muted"
+                >Klik sync untuk upsert voucher pool non-seed_sql ke hotspot user. Jika tunnel live belum aktif,
+                sistem tetap menyiapkan file script .rsc untuk import via Winbox.</small
+              >
+            </div>
+            <button id="sync-router-submit" class="btn" type="submit">Sync ke MikroTik</button>
+          </form>
+
+          <div class="actions">
+            <button id="download-sync-rsc" class="btn btn-soft hidden" type="button">Download Script .rsc</button>
+          </div>
+          <div id="sync-summary" class="muted"></div>
+        </article>
+
+        <article class="panel">
           <h2>Revoke Voucher</h2>
           <form id="revoke-form" class="form-grid">
             <div>

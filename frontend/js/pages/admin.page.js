@@ -5,7 +5,8 @@ import {
   getAdminUsers,
   getPackagesForAdmin,
   importVoucherPoolCsv,
-  revokeVoucher
+  revokeVoucher,
+  syncVoucherPoolToRouter
 } from '../admin.js';
 import { escapeHtml, formatCurrency, formatDate, setButtonBusy, showToast, statusLabel } from '../ui.js';
 
@@ -21,12 +22,18 @@ const importPackageEl = document.getElementById('import-package');
 const importBatchEl = document.getElementById('import-batch');
 const importCsvEl = document.getElementById('import-csv');
 const importSummaryEl = document.getElementById('import-summary');
+const syncFormEl = document.getElementById('sync-router-form');
+const syncProfileEl = document.getElementById('sync-profile');
+const syncSummaryEl = document.getElementById('sync-summary');
+const downloadSyncRscEl = document.getElementById('download-sync-rsc');
 
 const state = {
   topups: [],
   users: [],
   usersById: new Map(),
-  packages: []
+  packages: [],
+  latestSyncScript: null,
+  latestSyncFilename: null
 };
 
 function renderSummary() {
@@ -139,6 +146,29 @@ function renderImportSummary(result) {
   `;
 }
 
+function triggerDownload(filename, content) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename || 'sync_pool_to_mikrotik.rsc';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function renderSyncSummary(result) {
+  syncSummaryEl.innerHTML = `
+    <div class="meta"><span>Mode</span><strong>${escapeHtml(result.mode || '-')}</strong></div>
+    <div class="meta"><span>Total Row</span><strong>${result.rows_total ?? 0}</strong></div>
+    <div class="meta"><span>Profile</span><strong>${escapeHtml(result.profile_name || '-')}</strong></div>
+    <div class="meta"><span>Synced</span><strong>${result.synced_rows ?? 0}</strong></div>
+    <div class="meta"><span>Existing</span><strong>${result.existing_rows ?? 0}</strong></div>
+    <div class="meta"><span>Failed</span><strong>${result.failed_rows ?? 0}</strong></div>
+  `;
+}
+
 async function onImportVoucherSubmit(event) {
   event.preventDefault();
   const submitButton = importFormEl.querySelector('button[type="submit"]');
@@ -198,6 +228,35 @@ async function onRevokeSubmit(event) {
   }
 }
 
+async function onSyncRouterSubmit(event) {
+  event.preventDefault();
+  const submitButton = syncFormEl.querySelector('button[type="submit"]');
+  setButtonBusy(submitButton, true, 'Sinkronisasi...');
+  downloadSyncRscEl.classList.add('hidden');
+
+  try {
+    const profileName = syncProfileEl.value.trim() || 'harian';
+    const result = await syncVoucherPoolToRouter({
+      profile_name: profileName
+    });
+
+    renderSyncSummary(result);
+
+    state.latestSyncScript = result.script_content || null;
+    state.latestSyncFilename = result.script_filename || 'sync_pool_to_mikrotik.rsc';
+
+    if (state.latestSyncScript) {
+      downloadSyncRscEl.classList.remove('hidden');
+    }
+
+    showToast(result.message || 'Sinkronisasi selesai', 'success', 4500);
+  } catch (error) {
+    showToast(error.message, 'error', 4600);
+  } finally {
+    setButtonBusy(submitButton, false);
+  }
+}
+
 async function bootstrap() {
   const me = await requireAuth({ adminOnly: true });
   userNameEl.textContent = me.user?.name || 'Admin';
@@ -211,6 +270,14 @@ async function bootstrap() {
 
   revokeFormEl.addEventListener('submit', onRevokeSubmit);
   importFormEl.addEventListener('submit', onImportVoucherSubmit);
+  syncFormEl.addEventListener('submit', onSyncRouterSubmit);
+  downloadSyncRscEl.addEventListener('click', () => {
+    if (!state.latestSyncScript) {
+      showToast('Belum ada script sync yang tersedia', 'error');
+      return;
+    }
+    triggerDownload(state.latestSyncFilename, state.latestSyncScript);
+  });
 
   await Promise.all([refreshData(), refreshPackages()]);
 }
@@ -218,4 +285,3 @@ async function bootstrap() {
 bootstrap().catch((error) => {
   showToast(error.message || 'Gagal memuat panel admin', 'error', 4200);
 });
-

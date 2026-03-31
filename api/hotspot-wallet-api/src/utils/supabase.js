@@ -298,6 +298,34 @@ export async function importVoucherPoolRows(rows, env) {
   );
 }
 
+export async function getVoucherPoolRowsForSync(env, options = {}) {
+  const excludeSource = String(options.exclude_source || 'seed_sql').trim();
+  const statuses = Array.isArray(options.statuses) && options.statuses.length
+    ? options.statuses
+    : ['available', 'reserved', 'sold'];
+  const limit = Number(options.limit || 5000);
+
+  const statusFilters = statuses
+    .map((item) => `status.eq.${encodeURIComponent(String(item).trim())}`)
+    .join(',');
+
+  const queryParts = [
+    'select=id,username,password,status,source,batch_code,created_at',
+    `or=(${statusFilters})`,
+    'order=created_at.asc'
+  ];
+
+  if (excludeSource) {
+    queryParts.push(`source=not.eq.${encodeURIComponent(excludeSource)}`);
+  }
+
+  if (Number.isFinite(limit) && limit > 0) {
+    queryParts.push(`limit=${Math.min(Math.max(Math.floor(limit), 1), 20000)}`);
+  }
+
+  return supabaseRequest(`voucher_pool?${queryParts.join('&')}`, { method: 'GET' }, env);
+}
+
 // VOUCHERS
 export async function createVoucher(voucherData, env) {
   return supabaseRequest(
