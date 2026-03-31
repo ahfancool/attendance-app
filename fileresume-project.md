@@ -1,6 +1,6 @@
 # File Resume Project (Checkpoint Terkini)
 
-Update terakhir: 2026-03-31 (Asia/Jakarta)  
+Update terakhir: 2026-04-01 (Asia/Jakarta)  
 Tujuan file: acuan cepat + detail teknis untuk AI agent lain agar bisa lanjut kerja tanpa kehilangan konteks.
 
 ## 1) Snapshot Proyek
@@ -198,6 +198,17 @@ Fungsi SQL penting:
   - `TELEGRAM_ADMIN_PANEL_URL` (var non-secret)
   - `PROOF_BUCKET` (default `payment-proofs`)
   - `TUNNEL_BASE_URL`, `TUNNEL_SHARED_KEY`, `TUNNEL_API_KEY`, `MIKROTIK_SERVER` (hanya jika balik ke realtime tunnel mode)
+
+### Hardening DB (2026-04-01)
+- RLS sudah diaktifkan pada:
+  - `public.voucher_pool`
+  - `public.idempotency_keys`
+- Privilege `anon` dan `authenticated` ke dua tabel di atas sudah dicabut.
+- Policy eksplisit `service_role` sudah ditambahkan:
+  - `voucher_pool_service_role_all`
+  - `idempotency_service_role_all`
+- SQL hardening tersimpan di:
+  - `docs/sql_rls_hardening_public_tables.sql`
 
 ## 8) RouterOS / Hotspot Integrasi
 
